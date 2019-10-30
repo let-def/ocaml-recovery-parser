@@ -1,0 +1,9 @@
+(library 
+ (name recovery_parser)
+ (wrapped false)
+ (libraries menhirLib))
+
+(ocamllex raw_lexer)
+(menhir 
+ (flags --strict --inspection --unused-tokens --table --cmly)                   
+ (modules raw_parser))
