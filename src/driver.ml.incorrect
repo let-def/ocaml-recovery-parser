@@ -185,7 +185,7 @@ module type PARSE_INTF = sig
     | Success of 'a
     | Error
 
-  val step : 'a parser -> P.token positioned -> 'a step
+  val step 'a parser -> P.token positioned -> 'a step
 end
 
 module type RECOVER_INTF = sig
@@ -251,21 +251,6 @@ struct
           let env = M.recovery_env parser in
           Intermediate (Recovering (R.generate env))
       end
-    | Recovering candidates ->
-      begin match R.attempt candidates token with
-        | `Ok (cp, _) -> Intermediate (Correct (M.recover cp))
-        | `Accept x -> Success x
-        | `Fail ->
-          begin match token with
-            | Raw_parser.EOF, _, _ ->
-              begin match candidates.final with
-                | None -> Error
-                | Some x -> Success x
-              end
-            | _ -> Intermediate parser
-          end
-      end
-end
 
 let parse_without_recovery entrypoint tokens =
   let module P = Without_recovery in
@@ -286,12 +271,9 @@ let parse_with_recovery entrypoint tokens =
     | P.Error -> failwith "Parsing failed"
     | P.Success x -> x
     | P.Intermediate p -> offer p tokens
-  and offer p tokens =
-    let token, rest = match tokens with
-      | [] -> (Raw_parser.EOF, Lexing.dummy_pos, Lexing.dummy_pos), []
-      | token :: rest -> token, rest
-    in
-    step rest (P.step p token)
+  and offer p = function
+    | [] -> assert false
+    | token :: rest -> step rest (P.step p token)
   in
   offer (P.initial entrypoint Lexing.dummy_pos) tokens
 
