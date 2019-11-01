@@ -238,7 +238,7 @@ struct
         ) traces;
     in
     if !stuck then
-        Format.printf "Not enough annotation to recover from state %d:\n%a\n%!"
+        Format.eprintf "Not enough annotation to recover from state %d:\n%a\n%!"
           (Lr1.to_int st) Print.itemset (Lr0.items (Lr1.lr0 st));
     { prefix = known_prefix; cases }
 
@@ -248,7 +248,7 @@ struct
     let all_stuck_states = Hashtbl.fold (fun k v acc -> (k, !v) :: acc) all_stuck_states [] in
     let all_stuck_states = List.sort (fun (_,v1) (_,v2) -> compare v2 v1) all_stuck_states in
     List.iter (fun (st, count) ->
-      Format.printf "# State %d is preventing recovery from %d states:\n%a\n\n%!"
+      Format.eprintf "# State %d is preventing recovery from %d states:\n%a\n\n%!"
         (Lr1.to_int st) count
         Print.itemset (Lr0.items (Lr1.lr0 st))
     ) all_stuck_states
