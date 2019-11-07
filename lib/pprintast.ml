@@ -30,6 +30,10 @@ open Longident
 open Parsetree
 open Ast_helper
 
+let option_value ~default = function
+  | None -> default
+  | Some x -> x
+
 let prefix_symbols  = [ '!'; '?'; '~' ] ;;
 let infix_symbols = [ '='; '<'; '>'; '@'; '^'; '|'; '&'; '+'; '-'; '*'; '/';
                       '$'; '%'; '#' ]
@@ -709,7 +713,7 @@ and expression ctxt f x =
           (list string_x_expression  ~sep:";"  )  l;
     | Pexp_letmodule (s, me, e) ->
         pp f "@[<hov2>let@ module@ %s@ =@ %a@ in@ %a@]"
-          (Option.value s.txt ~default:"_")
+          (option_value s.txt ~default:"_")
           (module_expr reset_ctxt) me (expression ctxt) e
     | Pexp_letexception (cd, e) ->
         pp f "@[<hov2>let@ exception@ %a@ in@ %a@]"
@@ -1115,12 +1119,12 @@ and signature_item ctxt f x : unit =
   | Psig_module ({pmd_type={pmty_desc=Pmty_alias alias;
                             pmty_attributes=[]; _};_} as pmd) ->
       pp f "@[<hov>module@ %s@ =@ %a@]%a"
-        (Option.value pmd.pmd_name.txt ~default:"_")
+        (option_value pmd.pmd_name.txt ~default:"_")
         longident_loc alias
         (item_attributes ctxt) pmd.pmd_attributes
   | Psig_module pmd ->
       pp f "@[<hov>module@ %s@ :@ %a@]%a"
-        (Option.value pmd.pmd_name.txt ~default:"_")
+        (option_value pmd.pmd_name.txt ~default:"_")
         (module_type ctxt) pmd.pmd_type
         (item_attributes ctxt) pmd.pmd_attributes
   | Psig_modsubst pms ->
@@ -1154,12 +1158,12 @@ and signature_item ctxt f x : unit =
         | pmd :: tl ->
             if not first then
               pp f "@ @[<hov2>and@ %s:@ %a@]%a"
-                (Option.value pmd.pmd_name.txt ~default:"_")
+                (option_value pmd.pmd_name.txt ~default:"_")
                 (module_type1 ctxt) pmd.pmd_type
                 (item_attributes ctxt) pmd.pmd_attributes
             else
               pp f "@[<hov2>module@ rec@ %s:@ %a@]%a"
-                (Option.value pmd.pmd_name.txt ~default:"_")
+                (option_value pmd.pmd_name.txt ~default:"_")
                 (module_type1 ctxt) pmd.pmd_type
                 (item_attributes ctxt) pmd.pmd_attributes;
             string_x_module_type_list f ~first:false tl
@@ -1188,7 +1192,7 @@ and module_expr ctxt f x =
         pp f "functor ()@;->@;%a" (module_expr ctxt) me
     | Pmod_functor (Named (s, mt), me) ->
         pp f "functor@ (%s@ :@ %a)@;->@;%a"
-          (Option.value s.txt ~default:"_")
+          (option_value s.txt ~default:"_")
           (module_type ctxt) mt (module_expr ctxt) me
     | Pmod_apply (me1, me2) ->
         pp f "(%a)(%a)" (module_expr ctxt) me1 (module_expr ctxt) me2
@@ -1318,14 +1322,14 @@ and structure_item ctxt f x =
             begin match arg_opt with
             | Unit -> pp f "()"
             | Named (s, mt) ->
-              pp f "(%s:%a)" (Option.value s.txt ~default:"_")
+              pp f "(%s:%a)" (option_value s.txt ~default:"_")
                 (module_type ctxt) mt
             end;
             module_helper me'
         | me -> me
       in
       pp f "@[<hov2>module %s%a@]%a"
-        (Option.value x.pmb_name.txt ~default:"_")
+        (option_value x.pmb_name.txt ~default:"_")
         (fun f me ->
            let me = module_helper me in
            match me with
@@ -1405,27 +1409,27 @@ and structure_item ctxt f x =
       let aux f = function
         | ({pmb_expr={pmod_desc=Pmod_constraint (expr, typ)}} as pmb) ->
             pp f "@[<hov2>@ and@ %s:%a@ =@ %a@]%a"
-              (Option.value pmb.pmb_name.txt ~default:"_")
+              (option_value pmb.pmb_name.txt ~default:"_")
               (module_type ctxt) typ
               (module_expr ctxt) expr
               (item_attributes ctxt) pmb.pmb_attributes
         | pmb ->
             pp f "@[<hov2>@ and@ %s@ =@ %a@]%a"
-              (Option.value pmb.pmb_name.txt ~default:"_")
+              (option_value pmb.pmb_name.txt ~default:"_")
               (module_expr ctxt) pmb.pmb_expr
               (item_attributes ctxt) pmb.pmb_attributes
       in
       begin match decls with
       | ({pmb_expr={pmod_desc=Pmod_constraint (expr, typ)}} as pmb) :: l2 ->
           pp f "@[<hv>@[<hov2>module@ rec@ %s:%a@ =@ %a@]%a@ %a@]"
-            (Option.value pmb.pmb_name.txt ~default:"_")
+            (option_value pmb.pmb_name.txt ~default:"_")
             (module_type ctxt) typ
             (module_expr ctxt) expr
             (item_attributes ctxt) pmb.pmb_attributes
             (fun f l2 -> List.iter (aux f) l2) l2
       | pmb :: l2 ->
           pp f "@[<hv>@[<hov2>module@ rec@ %s@ =@ %a@]%a@ %a@]"
-            (Option.value pmb.pmb_name.txt ~default:"_")
+            (option_value pmb.pmb_name.txt ~default:"_")
             (module_expr ctxt) pmb.pmb_expr
             (item_attributes ctxt) pmb.pmb_attributes
             (fun f l2 -> List.iter (aux f) l2) l2
