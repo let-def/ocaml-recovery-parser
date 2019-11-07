@@ -1,18 +1,15 @@
-(library 
+(library
  (public_name recovery_parser)
  (wrapped false)
  (libraries menhirLib))
 
 (ocamllex raw_lexer)
 
-(menhir 
- (flags --strict --inspection --unused-tokens --table --cmly)                   
+(menhir
+ (flags --strict --inspection --unused-tokens --table --cmly)
  (modules raw_parser))
 
 (rule
- (targets parser_recover.ml)
- (deps raw_parser.cmly)
- (action
-  (with-stdout-to
-   %{targets}
-   (run ../menhir-recover/main.exe raw_parser.cmly))))
+ (with-stdout-to
+  parser_recover.ml
+  (run ../menhir-recover/main.exe %{dep:raw_parser.cmly})))
