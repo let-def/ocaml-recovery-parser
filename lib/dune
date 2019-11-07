@@ -1,5 +1,5 @@
 (library 
- (name recovery_parser)
+ (public_name recovery_parser)
  (wrapped false)
  (libraries menhirLib))
 
