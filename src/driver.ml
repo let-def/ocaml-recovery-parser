@@ -301,24 +301,43 @@ let () =
   let len = Array.length Sys.argv in
   if len = 1 then
     Printf.eprintf
-      "Usage: '%s' { '-debug' | 'filename.ml' | 'filename.mli' }"
+      "Usage: '%s' { '-dyck' | '-debug' | 'filename.ml' | 'filename.mli' }\n"
       Sys.argv.(0)
   else
     let debug = ref false in
+    let dyck = ref false in
     for i = 1 to len - 1 do
       match Sys.argv.(i) with
       | "-debug" -> debug := true
+      | "-dyck" -> dyck := true
       | fname ->
         let tokens = lex_file fname in
-        (* dump_tokens tokens; *)
-        (* Interface or implementation? Check last character *)
-        (*let parse = parse_without_recovery in*)
-        let parse = parse_with_recovery in
-        if fname <> "" && fname.[String.length fname - 1] = 'i' then
-          let intf = parse P.Incremental.interface tokens in
-          Format.printf "%a\n%!" Pprintast.signature intf
-        else
-          let impl = parse P.Incremental.implementation tokens in
-          Format.printf "%a\n%!" Pprintast.structure impl
+        if !debug then begin
+          dump_tokens tokens;
+        end;
+        if !dyck then begin
+          let source = Array.of_list tokens in
+          let brackets = Dyck.parse source in
+          let indent =
+            if !debug then begin
+              Dyck.print stdout source brackets
+            end
+            else begin
+              let groups = Dyck.group_correct brackets in
+              Dyck.print_incorrect stdout source groups
+            end
+          in
+          if indent <> 0 then exit 1
+        end else begin
+          (* Interface or implementation? Check last character *)
+          (*let parse = parse_without_recovery in*)
+          let parse = parse_with_recovery in
+          if fname <> "" && fname.[String.length fname - 1] = 'i' then
+            let intf = parse P.Incremental.interface tokens in
+            Format.printf "%a\n%!" Pprintast.signature intf
+          else
+            let impl = parse P.Incremental.implementation tokens in
+            Format.printf "%a\n%!" Pprintast.structure impl
+        end
     done
 
