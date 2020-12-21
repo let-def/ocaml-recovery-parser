@@ -19,20 +19,6 @@ open Asttypes
 open Parsetree
 open Docstrings
 
-type let_binding =
-  { lb_pattern: pattern;
-    lb_expression: expression;
-    lb_attributes: attributes;
-    lb_docs: docs Lazy.t;
-    lb_text: text Lazy.t;
-    lb_loc: Location.t; }
-
-type let_bindings =
-  { lbs_bindings: let_binding list;
-    lbs_rec: rec_flag;
-    lbs_extension: string Asttypes.loc option;
-    lbs_loc: Location.t }
-
 type 'a with_loc = 'a Location.loc
 type loc = Location.t
 
@@ -42,6 +28,8 @@ type str_opt = string option with_loc
 type attrs = attribute list
 
 let default_loc = ref Location.none
+
+let const_string s = Pconst_string (s, !default_loc, None)
 
 (*let with_default_loc l f =
   Misc.protect_refs [Misc.R (default_loc, l)] f*)
@@ -54,7 +42,8 @@ module Const = struct
   let nativeint ?(suffix='n') i = integer ~suffix (Nativeint.to_string i)
   let float ?suffix f = Pconst_float (f, suffix)
   let char c = Pconst_char c
-  let string ?quotation_delimiter s = Pconst_string (s, quotation_delimiter)
+  let string ?quotation_delimiter ?(loc= !default_loc) s =
+    Pconst_string (s, loc, quotation_delimiter)
 end
 
 module Attr = struct
@@ -62,6 +51,7 @@ module Attr = struct
     { attr_name = name;
       attr_payload = payload;
       attr_loc = loc }
+  let as_tuple { attr_name; attr_payload; _ } = (attr_name, attr_payload)
 end
 
 module Typ = struct
@@ -214,6 +204,9 @@ module Exp = struct
   let setinstvar ?loc ?attrs a b = mk ?loc ?attrs (Pexp_setinstvar (a, b))
   let override ?loc ?attrs a = mk ?loc ?attrs (Pexp_override a)
   let letmodule ?loc ?attrs a b c= mk ?loc ?attrs (Pexp_letmodule (a, b, c))
+  let letmodule_no_opt ?loc ?attrs s b c=
+    let a = Location.mknoloc (Some s) in
+    mk ?loc ?attrs (Pexp_letmodule (a, b, c))
   let letexception ?loc ?attrs a b = mk ?loc ?attrs (Pexp_letexception (a, b))
   let assert_ ?loc ?attrs a = mk ?loc ?attrs (Pexp_assert a)
   let lazy_ ?loc ?attrs a = mk ?loc ?attrs (Pexp_lazy a)
@@ -653,3 +646,19 @@ module Of = struct
   let inherit_ ?loc ty =
     mk ?loc (Oinherit ty)
 end
+(** merlin: refactored out of Parser *)
+
+type let_binding =
+  { lb_pattern: pattern;
+    lb_expression: expression;
+    lb_attributes: attributes;
+    lb_docs: docs Lazy.t;
+    lb_text: text Lazy.t;
+    lb_loc: Location.t; }
+
+type let_bindings =
+  { lbs_bindings: let_binding list;
+    lbs_rec: rec_flag;
+    lbs_extension: string Asttypes.loc option;
+    lbs_loc: Location.t }
+

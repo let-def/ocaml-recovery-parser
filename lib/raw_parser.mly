@@ -17,6 +17,8 @@
 
 %{
 
+[@@@ocaml.warning "-9"]
+
 open Asttypes
 open Longident
 open Parsetree
@@ -24,6 +26,7 @@ open Ast_helper
 open Docstrings
 open Docstrings.WithMenhir
 
+let raise_error exn : unit = raise exn
 let mkloc = Location.mkloc
 let mknoloc = Location.mknoloc
 
@@ -213,18 +216,22 @@ let mkpat_opt_constraint ~loc p = function
   | None -> p
   | Some typ -> mkpat ~loc (Ppat_constraint(p, typ))
 
-(*let syntax_error () =
-  raise Syntaxerr.Escape_error*)
-
-(*let unclosed opening_name opening_loc closing_name closing_loc =
-  raise(Syntaxerr.Error(Syntaxerr.Unclosed(make_loc opening_loc, opening_name,
-                                           make_loc closing_loc, closing_name)))*)
-
-(*let expecting loc nonterm =
-    raise Syntaxerr.(Error(Expecting(make_loc loc, nonterm)))*)
+(*
+let syntax_error () =
+  raise Syntaxerr.Escape_error
+*)
 
 let not_expecting loc nonterm =
-    raise Syntaxerr.(Error(Not_expecting(make_loc loc, nonterm)))
+  raise_error Syntaxerr.(Error(Not_expecting(make_loc loc, nonterm)))
+
+(*
+let unclosed opening_name opening_loc closing_name closing_loc =
+  raise(Syntaxerr.Error(Syntaxerr.Unclosed(make_loc opening_loc, opening_name,
+                                           make_loc closing_loc, closing_name)))
+
+let expecting loc nonterm =
+    raise Syntaxerr.(Error(Expecting(make_loc loc, nonterm)))
+*)
 
 let dotop ~left ~right ~assign ~ext ~multi =
   let assign = if assign then "<-" else "" in
@@ -241,8 +248,7 @@ let dotop_fun ~loc dotop =
   mkexp ~loc (Pexp_ident (ghloc ~loc dotop))
 
 let array_function ~loc str name =
-  ghloc ~loc (Ldot(Lident str,
-                   ((*if !Clflags.unsafe then "unsafe_" ^ name else*) name)))
+  ghloc ~loc (Ldot(Lident str, name))
 
 let array_get_fun ~loc =
   ghexp ~loc (Pexp_ident(array_function ~loc "Array" "get"))
@@ -287,13 +293,13 @@ let bigarray_function ~loc str name =
   ghloc ~loc (Ldot(Ldot(Lident "Bigarray", str), name))
 
 let bigarray_untuplify = function
-  | { pexp_desc = Pexp_tuple explist; _ } -> explist
+    { pexp_desc = Pexp_tuple explist; pexp_loc = _ } -> explist
   | exp -> [exp]
 
 let bigarray_get ~loc arr arg =
   let mkexp, ghexp = mkexp ~loc, ghexp ~loc in
   let bigarray_function = bigarray_function ~loc in
-  let get = (*if !Clflags.unsafe then "unsafe_get" else*) "get" in
+  let get = "get" in
   match bigarray_untuplify arg with
     [c1] ->
       mkexp(Pexp_apply(ghexp(Pexp_ident(bigarray_function "Array1" get)),
@@ -311,7 +317,7 @@ let bigarray_get ~loc arr arg =
 let bigarray_set ~loc arr arg newval =
   let mkexp, ghexp = mkexp ~loc, ghexp ~loc in
   let bigarray_function = bigarray_function ~loc in
-  let set = (*if !Clflags.unsafe then "unsafe_set" else*) "set" in
+  let set = "set" in
   match bigarray_untuplify arg with
     [c1] ->
       mkexp(Pexp_apply(ghexp(Pexp_ident(bigarray_function "Array1" set)),
@@ -330,11 +336,7 @@ let bigarray_set ~loc arr arg newval =
                         Nolabel, ghexp(Pexp_array coords);
                         Nolabel, newval]))
 
-let lapply ~loc:_ p1 p2 =
-  (*if !Clflags.applicative_functors
-  then*) Lapply(p1, p2)
-  (*else raise (Syntaxerr.Error(
-                  Syntaxerr.Applicative_path (make_loc loc)))*)
+let lapply ~loc:_ p1 p2 = Lapply(p1, p2)
 
 let exp_of_longident ~loc lid =
   mkexp ~loc (Pexp_ident {lid with txt = Lident(Longident.last lid.txt)})
@@ -418,6 +420,11 @@ let wrap_sig_ext ~loc body ext =
 let wrap_mksig_ext ~loc (item, ext) =
   wrap_sig_ext ~loc (mksig ~loc item) ext
 
+let mk_quotedext ~loc (id, idloc, str, strloc, delim) =
+  let exp_id = mkloc id idloc in
+  let e = ghexp ~loc (Pexp_constant (Pconst_string (str, strloc, delim))) in
+  (exp_id, PStr [mkstrexp e []])
+
 let text_str pos = Str.text (rhs_text pos)
 let text_sig pos = Sig.text (rhs_text pos)
 let text_cstr pos = Cf.text (rhs_text pos)
@@ -445,6 +452,22 @@ let extra_def p1 p2 items =
 let extra_rhs_core_type ct ~pos =
   let docs = rhs_info pos in
   { ct with ptyp_attributes = add_info_attrs docs ct.ptyp_attributes }
+
+(*
+type let_binding =
+  { lb_pattern: pattern;
+    lb_expression: expression;
+    lb_attributes: attributes;
+    lb_docs: docs Lazy.t;
+    lb_text: text Lazy.t;
+    lb_loc: Location.t; }
+
+type let_bindings =
+  { lbs_bindings: let_binding list;
+    lbs_rec: rec_flag;
+    lbs_extension: string Asttypes.loc option;
+    lbs_loc: Location.t }
+*)
 
 let mklb first ~loc (p, e) attrs =
   {
@@ -511,7 +534,7 @@ let class_of_let_bindings ~loc lbs body =
    the assertions below should be turned into explicit checks. *)
 let package_type_of_module_type pmty =
   let err loc s =
-    raise (Syntaxerr.Error (Syntaxerr.Invalid_package_type (loc, s)))
+    raise_error (Syntaxerr.Error (Syntaxerr.Invalid_package_type (loc, s)))
   in
   let map_cstr = function
     | Pwith_type (lid, ptyp) ->
@@ -524,24 +547,24 @@ let package_type_of_module_type pmty =
           err loc "private types are not supported";
 
         (* restrictions below are checked by the 'with_constraint' rule *)
-        assert (ptyp.ptype_kind = Ptype_abstract);
-        assert (ptyp.ptype_attributes = []);
-        let ty =
-          match ptyp.ptype_manifest with
-          | Some ty -> ty
-          | None -> assert false
-        in
-        (lid, ty)
+        (* assert (ptyp.ptype_kind = Ptype_abstract); *)
+        (* assert (ptyp.ptype_attributes = []); *)
+        begin match ptyp.ptype_manifest with
+        | Some ty -> Some (lid, ty)
+        | None -> None
+        end
     | _ ->
-        err pmty.pmty_loc "only 'with type t =' constraints are supported"
+        err pmty.pmty_loc "only 'with type t =' constraints are supported";
+        None
   in
   match pmty with
-  | { pmty_desc = Pmty_ident lid; _ } -> (lid, [])
-  | { pmty_desc = Pmty_with({pmty_desc = Pmty_ident lid; _}, cstrs); _ } ->
-      (lid, List.map map_cstr cstrs)
+  | {pmty_desc = Pmty_ident lid} -> (lid, [])
+  | {pmty_desc = Pmty_with({pmty_desc = Pmty_ident lid}, cstrs)} ->
+      (lid, List.filter_map map_cstr cstrs)
   | _ ->
       err pmty.pmty_loc
         "only module type identifier and 'with type' constraints are supported"
+      ; (Location.mkloc (Lident "_") pmty.pmty_loc, [])
 
 let mk_directive_arg ~loc k =
   { pdira_desc = k;
@@ -558,11 +581,8 @@ let mk_directive ~loc name arg =
 %}
 
 %[@recover.prelude
-
   open Parsetree
   open Ast_helper
-
-  (* Ast nodes to inject when parsing fails *)
 
   let default_loc = ref Location.none
 
@@ -574,7 +594,6 @@ let mk_directive ~loc name arg =
 
   let default_module_expr () = Mod.structure ~loc:!default_loc[]
   let default_module_type () = Mty.signature ~loc:!default_loc[]
-
 ]
 
 /* Tokens */
@@ -685,8 +704,14 @@ let mk_directive ~loc name arg =
 %token <string> HASHOP
 %token SIG
 %token STAR
-%token <string * string option> STRING
-  [@recover.expr ("<invalid-string>", Some "<invalid-string>")]
+%token <string * Location.t * string option> STRING
+  [@recover.expr ("<invalid-string>", Location.none, Some "<invalid-string>")]
+%token
+  <string * Location.t * string * Location.t * string option> QUOTED_STRING_EXPR
+  [@recover.expr ("<invalid-quoted-string-expr>", Location.none, "", Location.none, None)]
+%token
+  <string * Location.t * string * Location.t * string option> QUOTED_STRING_ITEM
+  [@recover.expr ("<invalid-quoted-string-item>", Location.none, "", Location.none, None)]
 %token STRUCT
 %token THEN
 %token TILDE
@@ -706,6 +731,7 @@ let mk_directive ~loc name arg =
 %token <Docstrings.docstring> DOCSTRING
 
 %token EOL
+
 
 /* Precedences and associativities.
 
@@ -761,7 +787,7 @@ The precedences must be listed from low to high.
 %nonassoc prec_constant_constructor     /* cf. simple_expr (C versus C x) */
 %nonassoc prec_constr_appl              /* above AS BAR COLONCOLON COMMA */
 %nonassoc below_HASH
-%nonassoc HASH                         /* simple_expr/toplevel_directive */
+%nonassoc HASH                        /* simple_expr/toplevel_directive */
 %left     HASHOP
 %nonassoc below_DOT
 %nonassoc DOT DOTOP
@@ -769,7 +795,7 @@ The precedences must be listed from low to high.
 %nonassoc BACKQUOTE BANG BEGIN CHAR FALSE FLOAT INT
           LBRACE LBRACELESS LBRACKET LBRACKETBAR LIDENT LPAREN
           NEW PREFIXOP STRING TRUE UIDENT
-          LBRACKETPERCENT
+          LBRACKETPERCENT QUOTED_STRING_EXPR
 
 
 /* Entry points */
@@ -788,6 +814,18 @@ The precedences must be listed from low to high.
 %type <Parsetree.expression> parse_expression
 %start parse_pattern
 %type <Parsetree.pattern> parse_pattern
+%start parse_constr_longident
+%type <Longident.t> parse_constr_longident
+%start parse_val_longident
+%type <Longident.t> parse_val_longident
+%start parse_mty_longident
+%type <Longident.t> parse_mty_longident
+%start parse_mod_ext_longident
+%type <Longident.t> parse_mod_ext_longident
+%start parse_mod_longident
+%type <Longident.t> parse_mod_longident
+%start parse_any_longident
+%type <Longident.t> parse_any_longident
 %%
 
 /* macros */
@@ -1129,6 +1167,35 @@ parse_pattern:
     { $1 }
 ;
 
+parse_mty_longident:
+  mty_longident EOF
+    { $1 }
+;
+
+parse_val_longident:
+  val_longident EOF
+    { $1 }
+;
+
+parse_constr_longident:
+  constr_longident EOF
+    { $1 }
+;
+
+parse_mod_ext_longident:
+  mod_ext_longident EOF
+    { $1 }
+;
+
+parse_mod_longident:
+  mod_longident EOF
+    { $1 }
+;
+
+parse_any_longident:
+  any_longident EOF
+    { $1 }
+;
 (* -------------------------------------------------------------------------- *)
 
 (* Functor arguments appear in module expressions and module types. *)
@@ -2135,8 +2202,8 @@ expr [@recover.expr default_expr ()]:
       { dotop_set ~loc:$sloc (ldot $3) brace $4 $1 $6 $9 }
   | expr attribute
       { Exp.attr $1 $2 }
-  | UNDERSCORE
-     { not_expecting $loc($1) "wildcard \"_\"" }
+  (*| UNDERSCORE
+     { not_expecting $loc($1) "wildcard \"_\"" }*)
 ;
 %inline expr_attrs:
   | LET MODULE ext_attributes mkrhs(module_name) module_binding_body IN seq_expr
@@ -2483,7 +2550,7 @@ match_case:
       { Exp.case $1 $3 }
   | pattern WHEN seq_expr MINUSGREATER seq_expr
       { Exp.case $1 ~guard:$3 $5 }
-  | pattern MINUSGREATER DOT
+  | pattern MINUSGREATER DOT [@cost infinity]
       { Exp.case $1 (Exp.unreachable ~loc:(make_loc $loc($3)) ()) }
 ;
 fun_def:
@@ -3233,7 +3300,7 @@ atomic_type:
         { Ptyp_object ([], Closed) }
     | tys = actual_type_parameters
       HASH
-      cid = mkrhs(class_longident)
+      cid = mkrhs(clty_longident)
         { Ptyp_class(cid, tys) }
     | LBRACKET tag_field RBRACKET
         (* not row_field; see CONFLICTS *)
@@ -3358,7 +3425,7 @@ meth_list:
 constant:
   | INT          { let (n, m) = $1 in Pconst_integer (n, m) }
   | CHAR         { Pconst_char $1 }
-  | STRING       { let (s, d) = $1 in Pconst_string (s, d) }
+  | STRING       { let (s, strloc, d) = $1 in Pconst_string (s, strloc, d) }
   | FLOAT        { let (f, m) = $1 in Pconst_float (f, m) }
 ;
 signed_constant:
@@ -3375,12 +3442,17 @@ ident:
     UIDENT                    { $1 }
   | LIDENT                    { $1 }
 ;
+val_extra_ident:
+  | LPAREN operator RPAREN    { $2 }
+  (*
+  | LPAREN operator error     { unclosed "(" $loc($1) ")" $loc($3) }
+  | LPAREN error              { expecting $loc($2) "operator" }
+  | LPAREN MODULE error       { expecting $loc($3) "module-expr" }
+  *)
+;
 val_ident:
     LIDENT                    { $1 }
-  | LPAREN operator RPAREN    { $2 }
-  (*| LPAREN operator error     { unclosed "(" $loc($1) ")" $loc($3) }*)
-  (*| LPAREN error              { expecting $loc($2) "operator" }*)
-  (*| LPAREN MODULE error       { expecting $loc($3) "module-expr" }*)
+  | val_extra_ident           { $1 }
 ;
 operator:
     PREFIXOP                                    { $1 }
@@ -3422,60 +3494,67 @@ index_mod:
 | { "" }
 | SEMI DOTDOT { ";.." }
 ;
-constr_ident:
-    UIDENT                                      { $1 }
+%inline constr_extra_ident:
+  | LPAREN COLONCOLON RPAREN                    { "::" }
+;
+constr_extra_nonprefix_ident:
   | LBRACKET RBRACKET                           { "[]" }
   | LPAREN RPAREN                               { "()" }
-  | LPAREN COLONCOLON RPAREN                    { "::" }
   | FALSE                                       { "false" }
   | TRUE                                        { "true" }
 ;
-
-val_longident:
-    val_ident                                   { Lident $1 }
-  | mod_longident DOT val_ident                 { Ldot($1, $3) }
+constr_ident:
+    UIDENT                                      { $1 }
+  | constr_extra_ident                          { $1 }
+  | constr_extra_nonprefix_ident                { $1 }
 ;
 constr_longident:
-    mod_longident       %prec below_DOT         { $1 }
-  | mod_longident DOT LPAREN COLONCOLON RPAREN  { Ldot($1,"::") }
-  | LBRACKET RBRACKET                           { Lident "[]" }
-  | LPAREN RPAREN                               { Lident "()" }
-  | LPAREN COLONCOLON RPAREN                    { Lident "::" }
-  | FALSE                                       { Lident "false" }
-  | TRUE                                        { Lident "true" }
+    mod_longident       %prec below_DOT         { $1 } /* A.B.x vs (A).B.x */
+  | mod_longident DOT constr_extra_ident        { Ldot($1,$3) }
+  | constr_extra_ident                          { Lident $1 }
+  | constr_extra_nonprefix_ident                { Lident $1 }
+;
+mk_longident(prefix,final):
+  | final             { Lident $1 }
+  | prefix DOT final  { Ldot($1,$3) }
+;
+val_longident:
+    mk_longident(mod_longident, val_ident) { $1 }
 ;
 label_longident:
-    LIDENT                                      { Lident $1 }
-  | mod_longident DOT LIDENT                    { Ldot($1, $3) }
+    mk_longident(mod_longident, LIDENT) { $1 }
 ;
 type_longident:
-    LIDENT                                      { Lident $1 }
-  | mod_ext_longident DOT LIDENT                { Ldot($1, $3) }
+    mk_longident(mod_ext_longident, LIDENT) { $1 }
 ;
 mod_longident:
-    UIDENT                                      { Lident $1 }
-  | mod_longident DOT UIDENT                    { Ldot($1, $3) }
+    mk_longident(mod_longident, UIDENT) { $1 }
 ;
 mod_ext_longident:
-    UIDENT                                      { Lident $1 }
-  | mod_ext_longident DOT UIDENT                { Ldot($1, $3) }
+    mk_longident(mod_ext_longident, UIDENT) { $1 }
   | mod_ext_longident LPAREN mod_ext_longident RPAREN
       { lapply ~loc:$sloc $1 $3 }
   (*| mod_ext_longident LPAREN error
       { expecting $loc($3) "module path" }*)
 ;
 mty_longident:
-    ident                                       { Lident $1 }
-  | mod_ext_longident DOT ident                 { Ldot($1, $3) }
+    mk_longident(mod_ext_longident,ident) { $1 }
 ;
 clty_longident:
-    LIDENT                                      { Lident $1 }
-  | mod_ext_longident DOT LIDENT                { Ldot($1, $3) }
+    mk_longident(mod_ext_longident,LIDENT) { $1 }
 ;
 class_longident:
-    LIDENT                                      { Lident $1 }
-  | mod_longident DOT LIDENT                    { Ldot($1, $3) }
+    mk_longident(mod_longident,LIDENT) { $1 }
 ;
+
+/* For compiler-libs: parse all valid longidents and a little more:
+   final identifiers which are value specific are accepted even when
+   the path prefix is only valid for types: (e.g. F(X).(::)) */
+any_longident:
+  | mk_longident (mod_ext_longident,
+     ident | constr_extra_ident | val_extra_ident { $1 }
+    ) { $1 }
+  | constr_extra_nonprefix_ident { Lident $1 }
 
 /* Toplevel directives */
 
@@ -3486,7 +3565,7 @@ toplevel_directive:
 ;
 
 %inline toplevel_directive_argument:
-  | STRING        { let (s, _) = $1 in Pdir_string s }
+  | STRING        { let (s, _, _) = $1 in Pdir_string s }
   | INT           { let (n, m) = $1 in Pdir_int (n ,m) }
   | val_longident { Pdir_ident $1 }
   | mod_longident { Pdir_ident $1 }
@@ -3504,7 +3583,7 @@ toplevel_directive:
 
 %inline raw_string:
   s = STRING
-    { fst s }
+    { let body, _, _ = s in body }
 ;
 
 name_tag:
@@ -3520,7 +3599,7 @@ rec_flag:
 ;
 %inline no_nonrec_flag:
     /* empty */ { Recursive }
-  | NONREC      { not_expecting $loc "nonrec flag" }
+  | NONREC      { not_expecting $loc "nonrec flag"; Recursive }
 ;
 direction_flag:
     TO                                          { Upto }
@@ -3684,16 +3763,20 @@ ext:
 ;
 %inline no_ext:
   | /* empty */     { None }
-  | PERCENT attr_id { not_expecting $loc "extension" }
+  | PERCENT attr_id { not_expecting $loc "extension"; None }
 ;
 %inline ext_attributes:
   ext attributes    { $1, $2 }
 ;
 extension:
-  LBRACKETPERCENT attr_id payload RBRACKET { ($2, $3) }
+  | LBRACKETPERCENT attr_id payload RBRACKET { ($2, $3) }
+  | QUOTED_STRING_EXPR
+    { mk_quotedext ~loc:$sloc $1 }
 ;
 item_extension:
-  LBRACKETPERCENTPERCENT attr_id payload RBRACKET { ($2, $3) }
+  | LBRACKETPERCENTPERCENT attr_id payload RBRACKET { ($2, $3) }
+  | QUOTED_STRING_ITEM
+    { mk_quotedext ~loc:$sloc $1 }
 ;
 payload:
     structure { PStr $1 }
@@ -3702,4 +3785,5 @@ payload:
   | QUESTION pattern { PPat ($2, None) }
   | QUESTION pattern WHEN seq_expr { PPat ($2, Some $4) }
 ;
+
 %%

@@ -89,18 +89,20 @@ let doc_loc = {txt = "ocaml.doc"; loc = Location.none}
 
 let docs_attr ds =
   let open Parsetree in
+  let body = ds.ds_body in
+  let loc = ds.ds_loc in
   let exp =
-    { pexp_desc = Pexp_constant (Pconst_string(ds.ds_body, None));
-      pexp_loc = ds.ds_loc;
+    { pexp_desc = Pexp_constant (Pconst_string(body, loc, None));
+      pexp_loc = loc;
       pexp_loc_stack = [];
       pexp_attributes = []; }
   in
   let item =
-    { pstr_desc = Pstr_eval (exp, []); pstr_loc = exp.pexp_loc }
+    { pstr_desc = Pstr_eval (exp, []); pstr_loc = loc }
   in
   { attr_name = doc_loc;
     attr_payload = PStr [item];
-    attr_loc = Location.none }
+    attr_loc = loc }
 
 let add_docs_attrs docs attrs =
   let attrs =
@@ -139,21 +141,23 @@ let text_loc = {txt = "ocaml.text"; loc = Location.none}
 
 let text_attr ds =
   let open Parsetree in
+  let body = ds.ds_body in
+  let loc = ds.ds_loc in
   let exp =
-    { pexp_desc = Pexp_constant (Pconst_string(ds.ds_body, None));
-      pexp_loc = ds.ds_loc;
+    { pexp_desc = Pexp_constant (Pconst_string(body, loc, None));
+      pexp_loc = loc;
       pexp_loc_stack = [];
       pexp_attributes = []; }
   in
   let item =
-    { pstr_desc = Pstr_eval (exp, []); pstr_loc = exp.pexp_loc }
+    { pstr_desc = Pstr_eval (exp, []); pstr_loc = loc }
   in
   { attr_name = text_loc;
     attr_payload = PStr [item];
-    attr_loc = Location.none }
+    attr_loc = loc }
 
 let add_text_attrs dsl attrs =
-  let fdsl = List.filter (fun t -> t.ds_body <> "") dsl in
+  let fdsl = List.filter (function {ds_body="";_} -> false| _ ->true) dsl in
   (List.map text_attr fdsl) @ attrs
 
 (* Find the first non-info docstring in a list, attach it and return it *)
@@ -162,8 +166,8 @@ let get_docstring ~info dsl =
     | [] -> None
     | {ds_attached = Info; _} :: rest -> loop rest
     | ds :: _ ->
-      ds.ds_attached <- if info then Info else Docs;
-      Some ds
+        ds.ds_attached <- if info then Info else Docs;
+        Some ds
   in
   loop dsl
 
@@ -173,10 +177,10 @@ let get_docstrings dsl =
     | [] -> List.rev acc
     | {ds_attached = Info; _} :: rest -> loop acc rest
     | ds :: rest ->
-      ds.ds_attached <- Docs;
-      loop (ds :: acc) rest
+        ds.ds_attached <- Docs;
+        loop (ds :: acc) rest
   in
-  loop [] dsl
+    loop [] dsl
 
 (* "Associate" all the docstrings in a list *)
 let associate_docstrings dsl =
@@ -198,14 +202,14 @@ let set_pre_docstrings pos dsl =
 let get_pre_docs pos =
   try
     let dsl = Hashtbl.find pre_table pos in
-    associate_docstrings dsl;
-    get_docstring ~info:false dsl
+      associate_docstrings dsl;
+      get_docstring ~info:false dsl
   with Not_found -> None
 
 let mark_pre_docs pos =
   try
     let dsl = Hashtbl.find pre_table pos in
-    associate_docstrings dsl
+      associate_docstrings dsl
   with Not_found -> ()
 
 (* Map from positions to post docstrings *)
@@ -219,20 +223,20 @@ let set_post_docstrings pos dsl =
 let get_post_docs pos =
   try
     let dsl = Hashtbl.find post_table pos in
-    associate_docstrings dsl;
-    get_docstring ~info:false dsl
+      associate_docstrings dsl;
+      get_docstring ~info:false dsl
   with Not_found -> None
 
 let mark_post_docs pos =
   try
     let dsl = Hashtbl.find post_table pos in
-    associate_docstrings dsl
+      associate_docstrings dsl
   with Not_found -> ()
 
 let get_info pos =
   try
     let dsl = Hashtbl.find post_table pos in
-    get_docstring ~info:true dsl
+      get_docstring ~info:true dsl
   with Not_found -> None
 
 (* Map from positions to floating docstrings *)
@@ -246,13 +250,13 @@ let set_floating_docstrings pos dsl =
 let get_text pos =
   try
     let dsl = Hashtbl.find floating_table pos in
-    get_docstrings dsl
+      get_docstrings dsl
   with Not_found -> []
 
 let get_post_text pos =
   try
     let dsl = Hashtbl.find post_table pos in
-    get_docstrings dsl
+      get_docstrings dsl
   with Not_found -> []
 
 (* Maps from positions to extra docstrings *)
@@ -266,7 +270,7 @@ let set_pre_extra_docstrings pos dsl =
 let get_pre_extra_text pos =
   try
     let dsl = Hashtbl.find pre_extra_table pos in
-    get_docstrings dsl
+      get_docstrings dsl
   with Not_found -> []
 
 let post_extra_table : (Lexing.position, docstring list) Hashtbl.t =
@@ -278,136 +282,136 @@ let set_post_extra_docstrings pos dsl =
 let get_post_extra_text pos =
   try
     let dsl = Hashtbl.find post_extra_table pos in
-    get_docstrings dsl
+      get_docstrings dsl
   with Not_found -> []
 
 (* Docstrings from parser actions *)
 module WithParsing = struct
-  let symbol_docs () =
-    { docs_pre = get_pre_docs (Parsing.symbol_start_pos ());
-      docs_post = get_post_docs (Parsing.symbol_end_pos ()); }
+let symbol_docs () =
+  { docs_pre = get_pre_docs (Parsing.symbol_start_pos ());
+    docs_post = get_post_docs (Parsing.symbol_end_pos ()); }
 
-  let symbol_docs_lazy () =
-    let p1 = Parsing.symbol_start_pos () in
-    let p2 = Parsing.symbol_end_pos () in
+let symbol_docs_lazy () =
+  let p1 = Parsing.symbol_start_pos () in
+  let p2 = Parsing.symbol_end_pos () in
     lazy { docs_pre = get_pre_docs p1;
            docs_post = get_post_docs p2; }
 
-  let rhs_docs pos1 pos2 =
-    { docs_pre = get_pre_docs (Parsing.rhs_start_pos pos1);
-      docs_post = get_post_docs (Parsing.rhs_end_pos pos2); }
+let rhs_docs pos1 pos2 =
+  { docs_pre = get_pre_docs (Parsing.rhs_start_pos pos1);
+    docs_post = get_post_docs (Parsing.rhs_end_pos pos2); }
 
-  let rhs_docs_lazy pos1 pos2 =
-    let p1 = Parsing.rhs_start_pos pos1 in
-    let p2 = Parsing.rhs_end_pos pos2 in
+let rhs_docs_lazy pos1 pos2 =
+  let p1 = Parsing.rhs_start_pos pos1 in
+  let p2 = Parsing.rhs_end_pos pos2 in
     lazy { docs_pre = get_pre_docs p1;
            docs_post = get_post_docs p2; }
 
-  let mark_symbol_docs () =
-    mark_pre_docs (Parsing.symbol_start_pos ());
-    mark_post_docs (Parsing.symbol_end_pos ())
+let mark_symbol_docs () =
+  mark_pre_docs (Parsing.symbol_start_pos ());
+  mark_post_docs (Parsing.symbol_end_pos ())
 
-  let mark_rhs_docs pos1 pos2 =
-    mark_pre_docs (Parsing.rhs_start_pos pos1);
-    mark_post_docs (Parsing.rhs_end_pos pos2)
+let mark_rhs_docs pos1 pos2 =
+  mark_pre_docs (Parsing.rhs_start_pos pos1);
+  mark_post_docs (Parsing.rhs_end_pos pos2)
 
-  let symbol_info () =
-    get_info (Parsing.symbol_end_pos ())
+let symbol_info () =
+  get_info (Parsing.symbol_end_pos ())
 
-  let rhs_info pos =
-    get_info (Parsing.rhs_end_pos pos)
+let rhs_info pos =
+  get_info (Parsing.rhs_end_pos pos)
 
-  let symbol_text () =
-    get_text (Parsing.symbol_start_pos ())
+let symbol_text () =
+  get_text (Parsing.symbol_start_pos ())
 
-  let symbol_text_lazy () =
-    let pos = Parsing.symbol_start_pos () in
+let symbol_text_lazy () =
+  let pos = Parsing.symbol_start_pos () in
     lazy (get_text pos)
 
-  let rhs_text pos =
-    get_text (Parsing.rhs_start_pos pos)
+let rhs_text pos =
+  get_text (Parsing.rhs_start_pos pos)
 
-  let rhs_post_text pos =
-    get_post_text (Parsing.rhs_end_pos pos)
+let rhs_post_text pos =
+  get_post_text (Parsing.rhs_end_pos pos)
 
-  let rhs_text_lazy pos =
-    let pos = Parsing.rhs_start_pos pos in
+let rhs_text_lazy pos =
+  let pos = Parsing.rhs_start_pos pos in
     lazy (get_text pos)
 
-  let symbol_pre_extra_text () =
-    get_pre_extra_text (Parsing.symbol_start_pos ())
+let symbol_pre_extra_text () =
+  get_pre_extra_text (Parsing.symbol_start_pos ())
 
-  let symbol_post_extra_text () =
-    get_post_extra_text (Parsing.symbol_end_pos ())
+let symbol_post_extra_text () =
+  get_post_extra_text (Parsing.symbol_end_pos ())
 
-  let rhs_pre_extra_text pos =
-    get_pre_extra_text (Parsing.rhs_start_pos pos)
+let rhs_pre_extra_text pos =
+  get_pre_extra_text (Parsing.rhs_start_pos pos)
 
-  let rhs_post_extra_text pos =
-    get_post_extra_text (Parsing.rhs_end_pos pos)
+let rhs_post_extra_text pos =
+  get_post_extra_text (Parsing.rhs_end_pos pos)
 end
 
 include WithParsing
 
 module WithMenhir = struct
-  let symbol_docs (startpos, endpos) =
-    { docs_pre = get_pre_docs startpos;
-      docs_post = get_post_docs endpos; }
+let symbol_docs (startpos, endpos) =
+  { docs_pre = get_pre_docs startpos;
+    docs_post = get_post_docs endpos; }
 
-  let symbol_docs_lazy (p1, p2) =
+let symbol_docs_lazy (p1, p2) =
+  lazy { docs_pre = get_pre_docs p1;
+         docs_post = get_post_docs p2; }
+
+let rhs_docs pos1 pos2 =
+  { docs_pre = get_pre_docs pos1;
+    docs_post = get_post_docs pos2; }
+
+let rhs_docs_lazy p1 p2 =
     lazy { docs_pre = get_pre_docs p1;
            docs_post = get_post_docs p2; }
 
-  let rhs_docs pos1 pos2 =
-    { docs_pre = get_pre_docs pos1;
-      docs_post = get_post_docs pos2; }
+let mark_symbol_docs (startpos, endpos) =
+  mark_pre_docs startpos;
+  mark_post_docs endpos;
+  ()
 
-  let rhs_docs_lazy p1 p2 =
-    lazy { docs_pre = get_pre_docs p1;
-           docs_post = get_post_docs p2; }
+let mark_rhs_docs pos1 pos2 =
+  mark_pre_docs pos1;
+  mark_post_docs pos2;
+  ()
 
-  let mark_symbol_docs (startpos, endpos) =
-    mark_pre_docs startpos;
-    mark_post_docs endpos;
-    ()
+let symbol_info endpos =
+  get_info endpos
 
-  let mark_rhs_docs pos1 pos2 =
-    mark_pre_docs pos1;
-    mark_post_docs pos2;
-    ()
+let rhs_info endpos =
+  get_info endpos
 
-  let symbol_info endpos =
-    get_info endpos
+let symbol_text startpos =
+  get_text startpos
 
-  let rhs_info endpos =
-    get_info endpos
+let symbol_text_lazy startpos =
+  lazy (get_text startpos)
 
-  let symbol_text startpos =
-    get_text startpos
+let rhs_text pos =
+  get_text pos
 
-  let symbol_text_lazy startpos =
-    lazy (get_text startpos)
+let rhs_post_text pos =
+  get_post_text pos
 
-  let rhs_text pos =
-    get_text pos
+let rhs_text_lazy pos =
+  lazy (get_text pos)
 
-  let rhs_post_text pos =
-    get_post_text pos
+let symbol_pre_extra_text startpos =
+  get_pre_extra_text startpos
 
-  let rhs_text_lazy pos =
-    lazy (get_text pos)
+let symbol_post_extra_text endpos =
+  get_post_extra_text endpos
 
-  let symbol_pre_extra_text startpos =
-    get_pre_extra_text startpos
+let rhs_pre_extra_text pos =
+  get_pre_extra_text pos
 
-  let symbol_post_extra_text endpos =
-    get_post_extra_text endpos
-
-  let rhs_pre_extra_text pos =
-    get_pre_extra_text pos
-
-  let rhs_post_extra_text pos =
-    get_post_extra_text pos
+let rhs_post_extra_text pos =
+  get_post_extra_text pos
 end
 
 (* (Re)Initialise all comment state *)

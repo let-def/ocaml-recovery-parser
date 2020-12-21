@@ -125,6 +125,8 @@ let string_of_token tok =
   | Raw_parser.PRIVATE                -> "PRIVATE"
   | Raw_parser.QUESTION               -> "QUESTION"
   | Raw_parser.QUOTE                  -> "QUOTE"
+  | Raw_parser.QUOTED_STRING_EXPR _   -> "QUOTED_STRING_EXPR _"
+  | Raw_parser.QUOTED_STRING_ITEM _   -> "QUOTED_STRING_ITEM _"
   | Raw_parser.RBRACE                 -> "RBRACE"
   | Raw_parser.RBRACKET               -> "RBRACKET"
   | Raw_parser.REC                    -> "REC"
@@ -133,7 +135,7 @@ let string_of_token tok =
   | Raw_parser.SEMISEMI               -> "SEMISEMI"
   | Raw_parser.SIG                    -> "SIG"
   | Raw_parser.STAR                   -> "STAR"
-  | Raw_parser.STRING (x, _)          -> s "STRING" x
+  | Raw_parser.STRING (x, _, _)          -> s "STRING" x
   | Raw_parser.STRUCT                 -> "STRUCT"
   | Raw_parser.THEN                   -> "THEN"
   | Raw_parser.TILDE                  -> "TILDE"
@@ -148,6 +150,7 @@ let string_of_token tok =
   | Raw_parser.WHEN                   -> "WHEN"
   | Raw_parser.WHILE                  -> "WHILE"
   | Raw_parser.WITH                   -> "WITH"
+
 
 let dump_tokens tokens =
   List.iter (fun (token, {Lexing. pos_cnum; pos_bol; pos_lnum; _}, _endp) ->

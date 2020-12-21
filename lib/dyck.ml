@@ -13,7 +13,7 @@ type token = Raw_parser.token =
   | TILDE
   | THEN
   | STRUCT
-  | STRING of (string * string option)
+  | STRING of (string * Location.t * string option)
   | STAR
   | SIG
   | SEMISEMI
@@ -22,6 +22,8 @@ type token = Raw_parser.token =
   | REC
   | RBRACKET
   | RBRACE
+  | QUOTED_STRING_ITEM of (string * Location.t * string * Location.t * string option)
+  | QUOTED_STRING_EXPR of (string * Location.t * string * Location.t * string option)
   | QUOTE
   | QUESTION
   | PRIVATE
