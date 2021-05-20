@@ -1234,9 +1234,18 @@ module_name:
    which are resolved by precedence declarations. This is concise but fragile.
    Perhaps in the future an explicit stratification could be used. *)
 
+parse_inside_struct:
+  | inside_struct EOF { $1 };
+;
+
+inside_struct:
+  | attrs = attributes s = structure
+    { (attrs, s) }
+;
+
 module_expr:
-  | STRUCT attrs = attributes s = structure END
-      { mkmod ~loc:$sloc ~attrs (Pmod_structure s) }
+  | STRUCT inside_struct END
+      { let attrs, s = $2 in mkmod ~loc:$sloc ~attrs (Pmod_structure s) }
   (*| STRUCT attributes structure error
       { unclosed "struct" $loc($1) "end" $loc($4) }*)
   | FUNCTOR attrs = attributes args = functor_args MINUSGREATER me = module_expr
@@ -1526,9 +1535,14 @@ open_description:
 
 /* Module types */
 
+inside_sig:
+  | attrs = attributes s = signature
+    { (attrs, s) }
+;
+
 module_type:
-  | SIG attrs = attributes s = signature END
-      { mkmty ~loc:$sloc ~attrs (Pmty_signature s) }
+  | SIG inside_sig END
+      { let attrs, s = $2 in mkmty ~loc:$sloc ~attrs (Pmty_signature s) }
   (*| SIG attributes signature error
       { unclosed "sig" $loc($1) "end" $loc($4) }*)
   | FUNCTOR attrs = attributes args = functor_args
@@ -2608,6 +2622,10 @@ record_expr_content:
         in
         label, e }
 ;
+parse_expr_semi_list:
+| expr_semi_list EOF
+  { $1 }
+;
 %inline expr_semi_list:
   es = separated_or_terminated_nonempty_list(SEMI, expr)
     { es }
@@ -2772,6 +2790,10 @@ pattern_comma_list(self):
     pattern_comma_list(self) COMMA pattern      { $3 :: $1 }
   | self COMMA pattern                          { [$3; $1] }
   (*| self COMMA error                            { expecting $loc($3) "pattern" }*)
+;
+parse_pattern_semi_list:
+  | pattern_semi_list EOF
+    { $1 }
 ;
 %inline pattern_semi_list:
   ps = separated_or_terminated_nonempty_list(SEMI, pattern)
