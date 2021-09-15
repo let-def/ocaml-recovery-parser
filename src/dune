@@ -1,3 +1,7 @@
-(executable 
+; Copyright (c) 2019 Frédéric Bour
+; 
+; SPDX-License-Identifier: MIT
+
+(executable
  (name driver)
  (libraries recovery_parser))

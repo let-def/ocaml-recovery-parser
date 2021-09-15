@@ -1,3 +1,7 @@
+; Copyright (c) 2019 Frédéric Bour
+; 
+; SPDX-License-Identifier: MIT
+
 (library 
  (name recovery_parser)
  (wrapped false)

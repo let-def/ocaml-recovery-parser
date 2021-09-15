@@ -1,2 +1,6 @@
+# Copyright (c) 2019 Frédéric Bour
+#
+# SPDX-License-Identifier: MIT
+
 _build
 .merlin

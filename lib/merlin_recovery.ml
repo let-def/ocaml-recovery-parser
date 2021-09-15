@@ -1,3 +1,9 @@
+(*
+ * Copyright (c) 2019 Frédéric Bour
+ *
+ * SPDX-License-Identifier: MIT
+ *)
+
 let split_pos {Lexing. pos_lnum; pos_bol; pos_cnum; _} =
   (pos_lnum, pos_cnum - pos_bol)
 

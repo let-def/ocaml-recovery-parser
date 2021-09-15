@@ -1,3 +1,9 @@
+(*
+ * Copyright (c) 2019 Frédéric Bour
+ *
+ * SPDX-License-Identifier: MIT
+ *)
+
 let const c = fun _ -> c
 
 let group_assoc l =

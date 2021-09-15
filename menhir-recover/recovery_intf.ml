@@ -1,3 +1,9 @@
+(*
+ * Copyright (c) 2019 Frédéric Bour
+ *
+ * SPDX-License-Identifier: MIT
+ *)
+
 open MenhirSdk.Cmly_api
 
 module type RECOVERY = sig

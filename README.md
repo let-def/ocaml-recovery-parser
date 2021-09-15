@@ -1,3 +1,9 @@
+<!--
+Copyright (c) 2019 Frédéric Bour
+
+SPDX-License-Identifier: MIT
+-->
+
 # OCaml Recovery Parser
 A simple fork of OCaml parser with support for error recovery
 

@@ -1,3 +1,9 @@
+(*
+ * Copyright (c) 2019 Frédéric Bour
+ *
+ * SPDX-License-Identifier: MIT
+ *)
+
 module Make
     (Parser : MenhirLib.IncrementalEngine.EVERYTHING)
     (Recovery : sig

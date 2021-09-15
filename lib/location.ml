@@ -1,3 +1,9 @@
+(*
+ * Copyright (c) 2019 Frédéric Bour
+ *
+ * SPDX-License-Identifier: MIT
+ *)
+
 type t = {
   loc_start: Lexing.position;
   loc_end: Lexing.position;
