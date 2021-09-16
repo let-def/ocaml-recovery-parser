@@ -1,6 +1,8 @@
 (*
- * Copyright (c) 2019 Frédéric Bour
+ * SPDX-FileCopyrightText: 2021 Serokell <https://serokell.io/>
+ * SPDX-License-Identifier: MPL-2.0
  *
+ * Copyright (c) 2019 Frédéric Bour
  * SPDX-License-Identifier: MIT
  *)
 
@@ -148,13 +150,13 @@ module Make
     (S : SYNTHESIZER with module G := G)
     (R : RECOVERY with module G := G) :
 sig
-  val emit : Format.formatter -> unit
+  val emit : ?external_tokens:string -> Format.formatter -> unit
 end = struct
 
   open G
   open Format
 
-  let emit_default_value ppf =
+  let emit_default_value token_module ppf =
     fprintf ppf "open %s\n\n"
       (String.capitalize (Filename.basename Grammar.basename))
       [@ocaml.warning "-3"];
@@ -167,7 +169,7 @@ end = struct
         | None -> ()
         | Some str ->
           fprintf ppf "    | %s.T %s.T_%s -> %s\n"
-            menhir menhir (Terminal.name t) str
+            menhir token_module (Terminal.name t) str
       );
     Nonterminal.iter (fun n ->
         match A.default_nonterminal n with
@@ -292,16 +294,16 @@ in
 
     fprintf ppf "  | _ -> raise Not_found\n"
 
-  let emit_token_of_terminal ppf =
+  let emit_token_of_terminal token_module ppf =
     let case t =
       match Terminal.kind t with
       | `REGULAR | `EOF ->
         fprintf ppf "  | %s.T_%s -> %s%s\n"
-          menhir (Terminal.name t)
+          token_module (Terminal.name t)
           (Terminal.name t) (if Terminal.typ t <> None then " v" else "")
       | `ERROR ->
         fprintf ppf "  | %s.T_%s -> assert false\n"
-          menhir (Terminal.name t)
+          token_module (Terminal.name t)
       | `PSEUDO -> ()
     in
     fprintf ppf
@@ -319,14 +321,15 @@ in
            \  let open MenhirInterpreter in function\n";
     Nonterminal.iter print_n;
     fprintf ppf "  | _ -> false\n"
-
-  let emit ppf =
-    emit_default_value ppf;
+ 
+  let emit ?external_tokens ppf =
+    let token_module = Option.value external_tokens ~default:menhir in
+    emit_default_value token_module ppf;
     emit_defs ppf;
     emit_depth ppf;
     emit_can_pop ppf;
     emit_recoveries ppf;
-    emit_token_of_terminal ppf;
+    emit_token_of_terminal token_module ppf;
     emit_nullable ppf
 
 end

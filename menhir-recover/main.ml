@@ -1,6 +1,8 @@
 (*
- * Copyright (c) 2019 Frédéric Bour
+ * SPDX-FileCopyrightText: 2021 Serokell <https://serokell.io/>
+ * SPDX-License-Identifier: MPL-2.0
  *
+ * Copyright (c) 2019 Frédéric Bour
  * SPDX-License-Identifier: MIT
  *)
 
@@ -8,18 +10,27 @@ open MenhirSdk
 open Recovery_custom
 
 let name = ref ""
+let external_tokens = ref None
 let verbose = ref false
 
 let usage () =
-  Printf.eprintf "Usage: %s [-v] file.cmly\n"
+  Printf.eprintf "Usage: %s [-v] [--external-tokens Module.Name] file.cmly\n"
     Sys.argv.(0);
   exit 1
 
 let () =
-  for i = 1 to Array.length Sys.argv - 1 do
-    match Sys.argv.(i) with
+  let i = ref 1 in
+  while !i < Array.length Sys.argv do
+    begin match Sys.argv.(!i) with
     | "-v" -> verbose := true
+    | "--external-tokens" ->
+       if (!i+1) = Array.length Sys.argv || !external_tokens <> None
+       then usage ()
+       else external_tokens := Some Sys.argv.(!i + 1);
+            i := !i + 1
     | arg -> if !name = "" then name := arg else usage ()
+    end;
+    i := !i + 1
   done;
   if !name = "" then
     usage ()
@@ -66,4 +77,4 @@ module R = Recover(G)(S)
 
 module E = Emitter.Make(G)(A)(S)(R)
 
-let () = E.emit Format.std_formatter
+let () = E.emit ?external_tokens:!external_tokens Format.std_formatter
