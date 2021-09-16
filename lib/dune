@@ -1,11 +1,22 @@
-; Copyright (c) 2019 Frédéric Bour
-; 
+; SPDX-FileCopyrightText: 2021 Serokell <https://serokell.io/>
+; SPDX-License-Identifier: MPL-2.0
+;
+; Copyright (c) 2019 Frédéric Bour 
 ; SPDX-License-Identifier: MIT
 
 (library 
+ (name ocaml_recovery_parser)
+ (public_name ocaml-recovery-parser)
+ (wrapped true)
+ (modules Merlin_recovery)
+ (libraries menhirLib compiler-libs))
+
+(library
  (name recovery_parser)
  (wrapped false)
- (libraries menhirLib))
+ (modules Ast_helper Asttypes Docstrings Longident Parsetree
+          Pprintast Raw_lexer Raw_parser Syntaxerr Parser_recover Location)
+ (libraries ocaml_recovery_parser))
 
 (ocamllex raw_lexer)
 

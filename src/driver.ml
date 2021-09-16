@@ -166,7 +166,7 @@ let dump_tokens tokens =
 module P = Raw_parser
 module I = P.MenhirInterpreter
 module R =
-  Merlin_recovery.Make(I)
+  Ocaml_recovery_parser.Merlin_recovery.Make(I)
     (struct
       include Parser_recover
 
