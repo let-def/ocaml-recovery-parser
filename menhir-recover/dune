@@ -1,7 +1,10 @@
+; SPDX-FileCopyrightText: 2021 Serokell <https://serokell.io/>
+; SPDX-License-Identifier: MPL-2.0
+;
 ; Copyright (c) 2019 Frédéric Bour
-; 
 ; SPDX-License-Identifier: MIT
 
 (executable
  (name main)
+ (public_name menhir-recover)
  (libraries fix menhirLib menhirSdk))
