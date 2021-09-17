@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: MIT
  *)
 
+module Location = Custom_compiler_libs.Location
+
 let split_pos {Lexing. pos_lnum; pos_bol; pos_cnum; _} =
   (pos_lnum, pos_cnum - pos_bol)
 

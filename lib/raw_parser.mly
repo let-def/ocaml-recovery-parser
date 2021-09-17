@@ -1,3 +1,6 @@
+/* SPDX-FileCopyrightText: 2021 Serokell <https://serokell.io/> */
+/* SPDX-License-Identifier: MPL-2.0                             */
+
 /* SPDX-License-Identifier: LGPL-2.1-only */
 /**************************************************************************/
 /*                                                                        */
@@ -18,12 +21,21 @@
 
 %{
 
-open Asttypes
-open Longident
-open Parsetree
-open Ast_helper
-open Docstrings
-open Docstrings.WithMenhir
+(* See https://github.com/ocaml/dune/issues/2450 *)
+module Asttypes = struct end
+module Parsetree = struct end
+module Ast_helper = struct end
+module Location = struct end
+module Longident = struct end
+
+open Custom_compiler_libs
+
+open Custom_compiler_libs.Asttypes
+open Custom_compiler_libs.Parsetree
+open Custom_compiler_libs.Longident
+open Custom_compiler_libs.Ast_helper
+open Custom_compiler_libs.Docstrings
+open Custom_compiler_libs.Docstrings.WithMenhir
 
 let mkloc = Location.mkloc
 let mknoloc = Location.mknoloc
@@ -560,8 +572,9 @@ let mk_directive ~loc name arg =
 
 %[@recover.prelude
 
-  open Parsetree
-  open Ast_helper
+  open Custom_compiler_libs.Parsetree
+  open Custom_compiler_libs.Ast_helper
+  module Location = Custom_compiler_libs.Location
 
   (* Ast nodes to inject when parsing fails *)
 
@@ -703,8 +716,8 @@ let mk_directive ~loc name arg =
 %token WHEN
 %token WHILE
 %token WITH
-%token <string * Location.t> COMMENT
-%token <Docstrings.docstring> DOCSTRING
+%token <string * Custom_compiler_libs.Location.t> COMMENT
+%token <Custom_compiler_libs.Docstrings.docstring> DOCSTRING
 
 %token EOL
 

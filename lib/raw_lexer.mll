@@ -20,6 +20,8 @@
 open Lexing
 open Raw_parser
 
+open Custom_compiler_libs
+
 type error =
   | Illegal_character of char
   | Illegal_escape of string * string option

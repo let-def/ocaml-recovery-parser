@@ -7,7 +7,7 @@
 module Make
     (Parser : MenhirLib.IncrementalEngine.EVERYTHING)
     (Recovery : sig
-       val default_value : Location.t -> 'a Parser.symbol -> 'a
+       val default_value : Custom_compiler_libs.Location.t -> 'a Parser.symbol -> 'a
 
        type action =
          | Abort

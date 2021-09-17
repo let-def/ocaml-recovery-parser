@@ -5,18 +5,24 @@
 ; SPDX-License-Identifier: MIT
 
 (library 
- (name ocaml_recovery_parser)
+ (name merlin_recovery)
  (public_name ocaml-recovery-parser)
  (wrapped true)
  (modules Merlin_recovery)
- (libraries menhirLib compiler-libs))
+ (libraries menhirLib custom_compiler_libs))
 
 (library
  (name recovery_parser)
  (wrapped false)
+ (modules Raw_parser Raw_lexer Parser_recover)
+ (libraries menhirLib custom_compiler_libs))
+
+(library
+ (name custom_compiler_libs)
+ (public_name ocaml-recovery-parser.custom_compiler_libs)
+ (wrapped true)
  (modules Ast_helper Asttypes Docstrings Longident Parsetree
-          Pprintast Raw_lexer Raw_parser Syntaxerr Parser_recover Location)
- (libraries ocaml_recovery_parser))
+          Pprintast  Syntaxerr Location))
 
 (ocamllex raw_lexer)
 
