@@ -9,7 +9,7 @@
  (public_name ocaml-recovery-parser)
  (wrapped true)
  (modules Merlin_recovery)
- (libraries menhirLib custom_compiler_libs))
+ (libraries menhirLib menhirSdk custom_compiler_libs))
 
 (library
  (name recovery_parser)

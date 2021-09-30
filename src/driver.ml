@@ -1,6 +1,8 @@
 (*
+ * SPDX-FileCopyrightText: 2021 Serokell <https://serokell.io/>
+ * SPDX-License-Identifier: MPL-2.0
+
  * Copyright (c) 2019 Frédéric Bour
- *
  * SPDX-License-Identifier: MIT
  *)
 
@@ -167,6 +169,17 @@ let dump_tokens tokens =
 
 module P = Raw_parser
 module I = P.MenhirInterpreter
+module Printer = Merlin_recovery.DummyPrinter (I)
+(* module Printer = Merlin_recovery.MakePrinter ( *)
+(*    struct *)
+(*      module I = I *)
+(*      let print = Printf.printf "%s" *)
+(*      let print_symbol = function *)
+(*        | I.X s -> Printf.printf "%s" @@ Parser_recover.print_symbol s *)
+(*      let print_element = None *)
+(*      let print_token t = print @@ string_of_token t *)
+(*    end) *)
+ 
 module R =
   Merlin_recovery.Make(I)
     (struct
@@ -177,7 +190,8 @@ module R =
         default_value x
 
       let guide _ = false
-    end)
+     end)
+    (Merlin_recovery.DummyPrinter (I))
 
 type 'a positioned = 'a * Lexing.position * Lexing.position
 

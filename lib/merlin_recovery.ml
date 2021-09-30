@@ -1,6 +1,8 @@
 (*
+ * SPDX-FileCopyrightText: 2021 Serokell <https://serokell.io/>
+ * SPDX-License-Identifier: MPL-2.0
+
  * Copyright (c) 2019 Frédéric Bour
- *
  * SPDX-License-Identifier: MIT
  *)
 
@@ -22,6 +24,51 @@ let rec rev_scan_left acc ~f ~init = function
   | x :: xs ->
     let init = f init x in
     rev_scan_left (init :: acc) ~f ~init xs
+
+(* Minimal signature that required from user for debug printing (tracing) *)
+
+module type USER_PRINTER =
+  sig
+    module I : MenhirLib.IncrementalEngine.EVERYTHING
+
+    val print : string -> unit
+    val print_symbol : I.xsymbol -> unit
+    val print_element : (I.element -> unit) option
+    val print_token : I.token -> unit
+  end
+
+(* Full signature
+     That separation allows users to redefine functions from full interface *)
+
+module type PRINTER =
+  sig
+    include USER_PRINTER
+
+    val print_current_state : 'a I.env -> unit
+    val print_env : 'a I.env -> unit
+  end
+
+(* Make full parser from minimal one *)
+
+module MakePrinter (U : USER_PRINTER)
+       : PRINTER with module I = U.I
+  =
+  struct
+    include U
+    include MenhirLib.Printers.Make (U.I) (U)
+  end
+
+(* Simple printer that do nothing. Useful if debug isn't used *)
+
+module DummyPrinter (I: MenhirLib.IncrementalEngine.EVERYTHING)
+       : PRINTER with module I = I
+  = MakePrinter (struct
+                   module I = I
+                   let print _ = ()
+                   let print_symbol _ = ()
+                   let print_element = None
+                   let print_token _ = ()
+                 end)
 
 module Make
     (Parser : MenhirLib.IncrementalEngine.EVERYTHING)
@@ -48,7 +95,8 @@ module Make
        val token_of_terminal : 'a Parser.terminal -> 'a -> Parser.token
 
        val nullable : 'a Parser.nonterminal -> bool
-     end) =
+     end)
+    (Printer : PRINTER with module I = Parser) =
 struct
 
   type 'a candidate = {
@@ -120,7 +168,46 @@ struct
     in
     { line; min_col; max_col; env }
 
-  let attempt r token =
+
+
+  let attempt (r : 'a candidates) token =
+    let module P = struct
+            open Printer
+
+            let num = ref 0
+
+            let print_prelude token =
+              match token with (token, _, _) ->
+                print ">>>> Recovery attempt on token \"";
+                print_token token;
+                print "\"\n";
+
+                (* print "Stack:"; *)
+                (* print_env r; *)
+                print "\n\n"
+
+            let print_candidate x =
+              print @@ Printf.sprintf "Candidate #%d\n" !num; num := !num + 1;
+              print "Stack:\n";
+              print_env x.env
+
+            let print_fail () =
+              print ">>>> Recovery failed\n"
+
+            let print_recovered env candidates =
+              print ">>>> recovered with state:\n";
+              print_current_state env;
+              print "\n";
+              print "Other candidates:\n";
+              List.iteri (fun i c ->
+                      print @@ Printf.sprintf "%d: " i;
+                      print_current_state c.env;
+                      print "\n"
+                  ) candidates;
+
+        end
+    in
+    P.print_prelude token;
     let _, startp, _ = token in
     let line, col = split_pos startp in
     let more_indented candidate =
@@ -144,11 +231,17 @@ struct
       aux recoveries
     in
     let rec aux = function
-      | [] -> `Fail
-      | x :: xs -> match feed_token ~allow_reduction:true token x.env with
+      | [] -> P.print_fail ();
+              `Fail
+      | x :: xs ->
+         P.print_candidate x;
+         match feed_token ~allow_reduction:true token x.env with
         | `Fail ->
           aux xs
-        | `Recovered (checkpoint, _) -> `Ok (checkpoint, x.env)
+        | `Recovered (InputNeeded env as checkpoint, _) ->
+           P.print_recovered env xs;
+           `Ok (checkpoint, x.env)
+        | `Recovered _ -> failwith "Impossible"
         | `Accept v ->
           begin match aux xs with
             | `Fail -> `Accept v
@@ -226,6 +319,8 @@ struct
     (!shifted, final, candidates)
 
   let generate env =
+    Printer.print "Generate candidates for env:\nStack:\n";
+    Printer.print_env env;
     let shifted, final, candidates = generate env in
     let candidates = rev_filter candidates
         ~f:(fun t -> not (Parser.env_has_default_reduction t.env))
