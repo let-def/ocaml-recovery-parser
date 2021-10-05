@@ -11,10 +11,12 @@ open Recovery_custom
 
 let name = ref ""
 let external_tokens = ref None
+let graph_folder = ref ""
+let graph = ref false
 let verbose = ref false
 
 let usage () =
-  Printf.eprintf "Usage: %s [-v] [--external-tokens Module.Name] file.cmly\n"
+  Printf.eprintf "Usage: %s [-v] [--graph dir] [--external-tokens Module.Name] file.cmly\n"
     Sys.argv.(0);
   exit 1
 
@@ -23,6 +25,12 @@ let () =
   while !i < Array.length Sys.argv do
     begin match Sys.argv.(!i) with
     | "-v" -> verbose := true
+    | "--graph" ->
+      graph := true;
+      if (!i+1) = Array.length Sys.argv || !external_tokens <> None
+      then usage ()
+      else graph_folder := Sys.argv.(!i + 1);
+            i := !i + 1
     | "--external-tokens" ->
        if (!i+1) = Array.length Sys.argv || !external_tokens <> None
        then usage ()
@@ -66,6 +74,12 @@ let () =
           (p :> int) Print.production p
       );
   end
+
+module Graph_Printer = Graph_printer.Make(G)
+
+let () =
+  if !graph then
+    Graph_Printer.print !graph_folder
 
 module S = Synthesis.Synthesizer(G)(A)
 
