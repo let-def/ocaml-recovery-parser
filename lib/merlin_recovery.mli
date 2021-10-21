@@ -87,7 +87,7 @@ module type RECOVERY =
 
 module Make
     (Parser   : MenhirLib.IncrementalEngine.EVERYTHING)
-    (Recovery : RECOVERY with module I = Parser)
+    (Recovery : RECOVERY with module I := Parser)
     (Printer  : PRINTER with module I = Parser) :
 sig
 
