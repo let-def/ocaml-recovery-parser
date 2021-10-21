@@ -183,7 +183,8 @@ end = struct
     fprintf ppf "let default_value = Default.value\n\n"
 
   let emit_defs ppf =
-    fprintf ppf "open %s\n\n" menhir;
+    fprintf ppf "module I = %s\n\n" menhir;
+    fprintf ppf "open I\n\n";
     fprintf ppf "type action =\n\
                 \  | Abort\n\
                 \  | R of int\n\
