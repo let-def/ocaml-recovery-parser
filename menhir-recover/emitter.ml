@@ -292,7 +292,7 @@ in
           )
       ) all_cases;
 
-    fprintf ppf "  | _ -> raise Not_found\n"
+    fprintf ppf "  | _ -> raise Not_found\n\n"
 
   let emit_token_of_terminal token_module ppf =
     let case t =
@@ -310,7 +310,8 @@ in
       "let token_of_terminal (type a) (t : a %s.terminal) (v : a) : token =\n\
       \  match t with\n"
       menhir;
-    Terminal.iter case
+    Terminal.iter case;
+    fprintf ppf "\n"
 
   let emit_nullable ppf =
     let print_n n =
@@ -320,8 +321,21 @@ in
     fprintf ppf "let nullable (type a) : a MenhirInterpreter.nonterminal -> bool =\n\
            \  let open MenhirInterpreter in function\n";
     Nonterminal.iter print_n;
-    fprintf ppf "  | _ -> false\n"
- 
+    fprintf ppf "  | _ -> false\n\n"
+
+  let emit_print_symbol token_module ppf =
+    fprintf ppf "let print_symbol (type a) : a MenhirInterpreter.symbol -> string = function\n";
+    Terminal.iter (fun t ->
+      if Terminal.kind t = `PSEUDO then ()
+      else
+        fprintf ppf "  | %s.T %s.T_%s -> \"%s\"\n" (* TODO: Use Print module *)
+          menhir token_module (Terminal.name t) (Terminal.name t));
+    Nonterminal.iter (fun t ->
+      if Nonterminal.kind t = `START then ()
+      else
+        fprintf ppf "  | %s.N %s.N_%s -> \"%s\"\n"
+          menhir menhir (Nonterminal.mangled_name t) (Nonterminal.name t))
+
   let emit ?external_tokens ppf =
     let token_module = Option.value external_tokens ~default:menhir in
     emit_default_value token_module ppf;
@@ -330,6 +344,7 @@ in
     emit_can_pop ppf;
     emit_recoveries ppf;
     emit_token_of_terminal token_module ppf;
-    emit_nullable ppf
+    emit_nullable ppf;
+    emit_print_symbol token_module ppf
 
 end
