@@ -264,6 +264,24 @@ struct
     | Error
 
   let step parser token =
+    let try_recovery candidates =
+      begin match token with (token, _, _) ->
+        Printf.printf "Recovery attempt on %s:\n"
+            (string_of_token token) end;
+      match R.attempt candidates token with
+      | `Ok (cp, _) -> Intermediate (Correct (M.recover cp))
+      | `Accept x -> Success x
+      | `Fail ->
+         begin match token with
+         | Raw_parser.EOF, _, _ ->
+            begin match candidates.final with
+            | None -> Error
+            | Some x -> Success x
+            end
+         (* Okay, lets try with next token *)
+         | _ -> Intermediate (Recovering candidates)
+         end
+    in
     match parser with
     | Correct parser ->
       begin match M.step parser token with
@@ -271,22 +289,10 @@ struct
         | M.Success x -> Success x
         | M.Error ->
           let env = M.recovery_env parser in
-          Intermediate (Recovering (R.generate env))
+          let candidates = R.generate env in
+          try_recovery candidates
       end
-    | Recovering candidates ->
-      begin match R.attempt candidates token with
-        | `Ok (cp, _) -> Intermediate (Correct (M.recover cp))
-        | `Accept x -> Success x
-        | `Fail ->
-          begin match token with
-            | Raw_parser.EOF, _, _ ->
-              begin match candidates.final with
-                | None -> Error
-                | Some x -> Success x
-              end
-            | _ -> Intermediate parser
-          end
-      end
+    | Recovering candidates -> try_recovery candidates
 end
 
 let parse_without_recovery entrypoint tokens =
