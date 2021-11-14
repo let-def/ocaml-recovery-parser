@@ -251,11 +251,16 @@ in
       | C.IReduce prod -> fprintf ppf "R %d" (Production.to_int prod)
       | C.IShift (T t) -> fprintf ppf "S (T T_%s)" (Terminal.name t)
       | C.IShift (N n) -> fprintf ppf "S (N N_%s)" (Nonterminal.mangled_name n)
-      | C.IRef r -> fprintf ppf "r%d" r
+      | C.IRef r -> fprintf ppf "Sub (r%d)" r
     in
-    let emit_instrs ppf = Utils.pp_list emit_instr ppf in
+    let rec emit_instrs ppf = function
+      | [] -> fprintf ppf "[]"
+      | [C.IRef r] -> fprintf ppf "r%d" r
+      | [instr] -> fprintf ppf "[%a]" emit_instr instr
+      | instr :: instrs -> fprintf ppf "%a :: %a" emit_instr instr emit_instrs instrs
+    in
     let emit_shared index instrs =
-      fprintf ppf "  let r%d = Sub %a in\n" index emit_instrs instrs
+      fprintf ppf "  let r%d = %a in\n" index emit_instrs instrs
     in
     List.iteri emit_shared globals;
     let emit_item ppf item = emit_instrs ppf (get_instr item) in
@@ -266,7 +271,7 @@ in
         fprintf ppf "-> ";
         match cases with
         | `Nothing -> fprintf ppf "Nothing\n";
-        | `One item -> fprintf ppf "One %a\n" emit_item item
+        | `One item -> fprintf ppf "One (%a)\n" emit_item item
         | `Select xs ->
           fprintf ppf "Select (function\n";
           if safe then (
