@@ -266,21 +266,18 @@ struct
 
   let report ppf =
     let open Format in
-    let solutions = Lr1.fold
+    let solutions = List.rev @@ Lr1.fold
         (fun st acc ->
            match
-             List.fold_left (fun (item, (cost, _ as solution)) (prod, pos) ->
-                 let cost', _ as solution' = solve (Tail (st, prod, pos)) in
-                 if cost' < cost then
-                   (Some (prod, pos), solution')
-                 else
-                   (item, solution)
-               ) (None, bottom) (Lr0.items (Lr1.lr0 st))
+             List.fold_left (fun acc ((prod, pos) as item) ->
+                 let solution = solve (Tail (st, prod, pos)) in
+                 (item, solution) :: acc
+               ) [] (Lr0.items (Lr1.lr0 st))
            with
-           | None, _ ->
+           | [] ->
              fprintf ppf "no synthesis from %d\n" (Lr1.to_int st);
              acc
-           | Some item, cost -> (item, (cost, st)) :: acc
+           | items -> (st, items) :: acc
         ) []
     in
     let fprintf = Format.fprintf in
@@ -290,18 +287,23 @@ struct
       | Shift  (T t) -> fprintf ppf "Shift (T %s)" (Terminal.name t)
       | Shift  (N n) -> fprintf ppf "Shift (N %s)" (Nonterminal.mangled_name n)
       | Seq    actions -> fprintf ppf "Seq %a" print_actions actions
-    and print_actions ppf = Utils.pp_list print_action ppf
+    and print_actions ppf = Utils.pp_list print_action ppf in
+    let print_item ppf = function
+      | (prod, pos), (cost, actions) ->
+         let cost = Cost.to_int cost in
+         fprintf ppf "Item(%3d, %1d) at cost %2d:\n %a => %a\n"
+             (Production.to_int prod) pos cost
+             Print.item (prod, pos)
+             print_actions actions
     in
-    List.iter (fun (item, states) ->
-        fprintf ppf "# Item (%d,%d)\n"
-          (Production.to_int (fst item)) (snd item);
-        Print.item ppf item;
-        List.iter (fun ((cost, actions), states) ->
-            fprintf ppf "at cost %d from states %a:\n%a\n\n"
-              (cost : Cost.t :> int)
-              (Utils.pp_list (fun ppf st ->
-                   fprintf ppf "#%d" (Lr1.to_int st))) states
-              print_actions actions
-          ) (group_assoc states)
-      ) (group_assoc solutions)
+    let sort_by_cost =
+      List.stable_sort (fun (_, (cost1, _)) (_, (cost2, _)) -> compare cost1 cost2) in
+    List.iter (fun (state, items) ->
+        fprintf ppf "State: #%d\n" (Lr1.to_int state);
+        fprintf ppf "\n";
+        List.iter (fun (item, solution) ->
+                print_item ppf (item, solution))
+             (sort_by_cost items);
+        fprintf ppf "\n\n"
+      ) solutions
 end
