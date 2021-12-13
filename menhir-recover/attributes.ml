@@ -253,14 +253,15 @@ struct
     )
 
   let cost_of_attributes prj attrs =
-    Cost.of_int (
-      List.fold_left
-        (fun total attr ->
-           if Attribute.has_label "recover.cost" attr then
-             total + int_of_string (Attribute.payload attr)
-           else total)
-        0 (prj attrs)
-    )
+    List.fold_left (fun total attr ->
+      if Attribute.has_label "recover.cost" attr then
+        let payload = Attribute.payload attr in
+        let cost = if payload =  "inf"
+                   then Cost.infinite
+                   else Cost.of_int (int_of_string payload)
+        in Cost.add total cost
+      else total)
+      Cost.zero (prj attrs)
 
   let cost_of_symbol =
     let measure ~has_default prj attrs =
