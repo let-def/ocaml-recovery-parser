@@ -190,6 +190,8 @@ module R =
         default_value x
 
       let guide _ = false
+      
+      let use_indentation_heuristic = false
      end)
     (Merlin_recovery.DummyPrinter (I))
 

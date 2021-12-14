@@ -83,6 +83,8 @@ module type RECOVERY =
     (* Customization that slightly affects on internal heuristics of choosing recovery ways.
        But returning [false] always also works well in many cases. *)
     val guide : 'a I.symbol -> bool
+    
+    val use_indentation_heuristic : bool
   end
 
 module Make
