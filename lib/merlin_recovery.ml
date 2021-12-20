@@ -115,6 +115,8 @@ module type RECOVERY =
     (* Customization that slightly affects on internal heuristics of choosing recovery ways.
        But returning [false] always also works well in many cases. *)
     val guide : 'a I.symbol -> bool
+
+    val use_indentation_heuristic : bool
   end
 
 module Make
@@ -192,7 +194,28 @@ struct
     in
     { line; min_col; max_col; env }
 
-
+  (* Drop first candidates that's more indented than [(line, col)] position 
+     and last ones that's less indented *)
+  let indentation_heuristic (line : int) (col : int) 
+    (candidates : 'a candidate list) : 'a candidate list =
+    let more_indented candidate =
+      line <> candidate.line && candidate.min_col > col in
+    let recoveries =
+      let rec aux = function
+        | x :: xs when more_indented x -> aux xs
+        | xs -> xs
+      in
+      aux candidates
+    in
+    let same_indented candidate =
+      line = candidate.line ||
+      (candidate.min_col <= col && col <= candidate.max_col)
+    in
+    let rec aux = function
+      | x :: xs when same_indented x -> x :: aux xs
+      | _ -> []
+    in
+    aux recoveries
 
   let attempt (r : 'a candidates) token =
     let module P = struct
@@ -234,26 +257,11 @@ struct
     P.print_prelude token;
     let _, startp, _ = token in
     let line, col = split_pos startp in
-    let more_indented candidate =
-      line <> candidate.line && candidate.min_col > col in
     let recoveries =
-      let rec aux = function
-        | x :: xs when more_indented x -> aux xs
-        | xs -> xs
-      in
-      aux r.candidates
-    in
-    let same_indented candidate =
-      line = candidate.line ||
-      (candidate.min_col <= col && col <= candidate.max_col)
-    in
-    let recoveries =
-      let rec aux = function
-        | x :: xs when same_indented x -> x :: aux xs
-        | _ -> []
-      in
-      aux recoveries
-    in
+      if Recovery.use_indentation_heuristic then
+        indentation_heuristic line col r.candidates
+      else
+        r.candidates in
     let rec aux = function
       | [] -> P.print_fail ();
               `Fail
