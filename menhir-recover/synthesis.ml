@@ -266,21 +266,18 @@ struct
 
   let report ppf =
     let open Format in
-    let solutions = Lr1.fold
+    let solutions = List.rev @@ Lr1.fold
         (fun st acc ->
            match
-             List.fold_left (fun (item, (cost, _ as solution)) (prod, pos) ->
-                 let cost', _ as solution' = solve (Tail (st, prod, pos)) in
-                 if cost' < cost then
-                   (Some (prod, pos), solution')
-                 else
-                   (item, solution)
-               ) (None, bottom) (Lr0.items (Lr1.lr0 st))
+             List.fold_left (fun acc ((prod, pos) as item) ->
+                 let solution = solve (Tail (st, prod, pos)) in
+                 (item, solution) :: acc
+               ) [] (Lr0.items (Lr1.lr0 st))
            with
-           | None, _ ->
+           | [] ->
              fprintf ppf "no synthesis from %d\n" (Lr1.to_int st);
              acc
-           | Some item, cost -> (item, (cost, st)) :: acc
+           | items -> (st, items) :: acc
         ) []
     in
     let fprintf = Format.fprintf in
@@ -290,18 +287,62 @@ struct
       | Shift  (T t) -> fprintf ppf "Shift (T %s)" (Terminal.name t)
       | Shift  (N n) -> fprintf ppf "Shift (N %s)" (Nonterminal.mangled_name n)
       | Seq    actions -> fprintf ppf "Seq %a" print_actions actions
-    and print_actions ppf = Utils.pp_list print_action ppf
+    and print_actions ppf = Utils.pp_list print_action ppf in
+    let cost_to_string cost =
+      if Cost.is_infinite cost then "inf" else sprintf "%2d" (Cost.to_int cost) in
+    let print_item_with_solution ppf = function
+      | (prod, pos), (cost, actions) ->
+         fprintf ppf "Item(%3d, %1d) at cost %s:\n %a => %a\n"
+             (Production.to_int prod) pos (cost_to_string cost)
+             Print.item (prod, pos)
+             print_actions actions
     in
-    List.iter (fun (item, states) ->
-        fprintf ppf "# Item (%d,%d)\n"
-          (Production.to_int (fst item)) (snd item);
-        Print.item ppf item;
-        List.iter (fun ((cost, actions), states) ->
-            fprintf ppf "at cost %d from states %a:\n%a\n\n"
-              (cost : Cost.t :> int)
-              (Utils.pp_list (fun ppf st ->
-                   fprintf ppf "#%d" (Lr1.to_int st))) states
-              print_actions actions
-          ) (group_assoc states)
-      ) (group_assoc solutions)
+    let sort_by_cost =
+      List.stable_sort (fun (_, (cost1, _)) (_, (cost2, _)) -> compare cost1 cost2) in
+    fprintf ppf "\n\n\n(* COSTS OF SOLUTIONS: *)\n\n";
+    List.iter (fun (state, items) ->
+        fprintf ppf "State: #%d\n" (Lr1.to_int state);
+        fprintf ppf "\n";
+        List.iter (fun (item, solution) ->
+                print_item_with_solution ppf (item, solution))
+             (sort_by_cost items);
+        fprintf ppf "\n\n"
+      ) solutions;
+    fprintf ppf "\n(* COST OF PRODUCTIONS (not equal one): *)\n\n";
+    Production.iter (fun prod ->
+      let cost = cost_of_prod prod in
+      if Cost.compare cost (Cost.of_int 1) <> 0 then
+          fprintf ppf "Production#%d %a at cost %s\n"
+              (Production.to_int prod)
+              Print.production prod
+              (cost_to_string cost)
+    );
+    fprintf ppf "\n(* COST OF TERMINAL (not equal one): *)\n\n";
+    Terminal.iter (fun t ->
+      let cost = cost_of_symbol (T t) in
+      if (Cost.compare cost (Cost.of_int 1)) <> 0 then
+        fprintf ppf "%a at cost %s\n"
+            Print.terminal t
+            (cost_to_string cost)
+    );
+    fprintf ppf "\n(* COST OF NONTERMINAL (not equal inf): *)\n\n";
+    Nonterminal.iter (fun n ->
+        let cost = cost_of_symbol (N n) in
+        if not (Cost.is_infinite cost) then
+          fprintf ppf "%a at cost %s\n"
+              Print.nonterminal n
+              (cost_to_string @@ cost_of_symbol (N n))
+    );
+    fprintf ppf "\n(* PENALTY OF ITEMS (not equal zero): *)\n\n";
+    Production.iter (fun prod ->
+      for pos = 0 to Array.length (Production.rhs prod) do
+        let item = (prod, pos) in
+        let cost = penalty_of_item item in
+        if (Cost.compare cost Cost.zero) <> 0 then
+            fprintf ppf "Item (%3d, %d) %a at cost %s\n"
+                (Production.to_int (prod)) pos
+                Print.item item
+                (cost_to_string @@ cost)
+      done
+    )
 end
