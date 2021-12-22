@@ -8,7 +8,7 @@ version      : "0.1"
 synopsis     : "A simple fork of OCaml parser with support for error recovery"
 maintainer   : "Serokell"
 authors      : "Frédéric Bour"
-license      : "MIT and LGPL-2.1-only and MPL-2.0"
+license      : "MIT AND LGPL-2.1-only AND MPL-2.0"
 homepage     : "https://github.com/serokell/ocaml-recovery-parser"
 bug-reports  : "https://github.com/serokell/ocaml-recovery-parser/issues"
 # If you change the dependencies, run `opam lock` in the root
