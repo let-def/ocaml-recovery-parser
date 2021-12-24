@@ -44,7 +44,12 @@ module type RECOVERY_GENERATED =
   sig
     module I : MenhirLib.IncrementalEngine.EVERYTHING
 
-    val default_value : 'a I.symbol -> 'a
+    (* Note: [Location.t] is just default, but the type of the first argument
+             [loc] isn't restricted in the [RecoverParser] and can be inferred
+             from actual usage in attributes. In this case, you should shadow
+             this function your signature and convert your type into
+             [Location.t] in an implementation *)
+    val default_value : Custom_compiler_libs.Location.t -> 'a I.symbol -> 'a
 
     type action =
       | Abort
@@ -77,13 +82,10 @@ module type RECOVERY =
 
     (* User customization functions *)
 
-    (* Like [RECOVERY_GENERATED.default], but also can use current parsing position. *)
-    val default_value : Custom_compiler_libs.Location.t -> 'a I.symbol -> 'a
-
     (* Customization that slightly affects on internal heuristics of choosing recovery ways.
        But returning [false] always also works well in many cases. *)
     val guide : 'a I.symbol -> bool
-    
+
     val use_indentation_heuristic : bool
   end
 

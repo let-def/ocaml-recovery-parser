@@ -7,4 +7,4 @@
 (executable
  (name main)
  (public_name menhir-recover)
- (libraries fix menhirLib menhirSdk))
+ (libraries fix menhirLib menhirSdk str))

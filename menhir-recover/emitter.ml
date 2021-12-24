@@ -163,7 +163,8 @@ end = struct
     fprintf ppf "module Default = struct\n";
     A.default_prelude ppf;
 
-    fprintf ppf "  let value (type a) : a %s.symbol -> a = function\n" menhir;
+    (* Suppress unused [loc] variable warning because its using is up to the user *)
+    fprintf ppf "  let [@warning \"-27\"] value (type a) loc : a %s.symbol -> a = function\n" menhir;
     Terminal.iter (fun t ->
         match A.default_terminal t with
         | None -> ()

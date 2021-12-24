@@ -300,10 +300,16 @@ struct
           Format.fprintf ppf "%s\n" (Attribute.payload a)
       ) Grammar.attributes
 
+  (* Extract [@recover.expr] payload from list of attributes  *)
   let default_expr ?(fallback="raise Not_found") attrs =
+    (* Read [@recover.expr] payload *)
+    let read attr =
+      let expand = Str.global_replace (Str.regexp "\\$loc") "loc"
+      in expand (Attribute.payload attr)
+    in
     match List.find (Attribute.has_label "recover.expr") attrs with
     | exception Not_found -> fallback
-    | attr -> Attribute.payload attr
+    | attr -> read attr
 
   let default_terminal t =
     match Terminal.kind t with
