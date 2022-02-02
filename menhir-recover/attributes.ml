@@ -49,7 +49,16 @@ module type ATTRIBUTES = sig
       expr [@recover.cost 1.0]:
         ...
       ;
+
+      Also, you can tweak the default cost by the `recover.default_cost_of_symbol`
+      grammar attribute otherwise default cost is 1.
+
+      [@recover.default_cost_of_symbol 1]
    *)
+
+  (** Default cost of a grammar symbol that is used if it has no `recover.cost`
+      attributes. Equals 1 if `recover.default_cost_of_symbol` attribute is missed *)
+  val default_cost_of_symbol : Cost.t
 
   (** Cost of a grammar symbol *)
   val cost_of_symbol  : G.symbol -> Cost.t
@@ -82,13 +91,21 @@ module type ATTRIBUTES = sig
       actions.
 
       expr:
-        LPAREN expr error { ... } [@recover.cost infinity]
+        LPAREN expr error { ... } [@recover.cost inf]
       ;
 
       It would not make much sense for the recovery to select an error rule.
       Associating an infinite cost to the production ensures that this never
       happen.
+
+      Also, you can tweak the default cost by the `recover.default_cost_of_production`
+      grammar attribute otherwise default cost is 1.
   *)
+
+  (** Default cost of production reduce that is used if it has no `recover.cost`
+      attributes. Equals 1 if `recover.default_cost_of_production` attribute is
+      missed. *)
+  val default_cost_of_prod : Cost.t
 
   (** Cost of reducing a production *)
   val cost_of_prod    : G.production -> Cost.t
@@ -187,10 +204,21 @@ struct
 
   let prefix = "recover."
 
+  let attr_names =
+    object
+      method cost = "recover.cost"
+      method expr = "recover.expr"
+      method prelude = "recover.prelude"
+      method default_cost_of_symbol = "recover.default_cost_of_symbol"
+      method default_cost_of_prod = "recover.default_cost_of_production"
+    end
+
   let all_attributes = [
-    "recover.cost";
-    "recover.expr";
-    "recover.prelude";
+    attr_names#cost;
+    attr_names#expr;
+    attr_names#prelude;
+    attr_names#default_cost_of_symbol;
+    attr_names#default_cost_of_prod;
   ]
 
   let validate_attribute accepted kind attr =
@@ -229,44 +257,68 @@ struct
 
   let () =
     validate_attributes
-      ["recover.prelude"] "grammar attributes"
+      [ attr_names#prelude;
+        attr_names#default_cost_of_prod;
+        attr_names#default_cost_of_symbol;
+      ] "grammar attributes"
       Grammar.attributes;
     let symbol prj attrs =
       validate_attributes
-        ["recover.cost"; "recover.expr"] "symbol attributes"
-        (prj attrs)
+      [ attr_names#cost;
+        attr_names#expr;
+      ] "symbol attributes"
+      (prj attrs)
     in
     Nonterminal.iter (symbol G.Nonterminal.attributes);
     Terminal.iter (symbol G.Terminal.attributes);
     Production.iter (fun p ->
         validate_attributes
-          [ "recover.cost";
+          [ attr_names#cost;
             (* recover.expr: a lie to prevent warnings on an unfortunate
                interaction between menhir inlining and attributes *)
-            "recover.expr"
+            attr_names#expr;
           ] "production attributes"
         (Production.attributes p);
       Array.iter
         (fun (_,_,attrs) ->
-           validate_attributes ["recover.cost"] "item attributes" attrs)
+           validate_attributes [attr_names#cost] "item attributes" attrs)
         (Production.rhs p)
     )
 
-  let cost_of_attributes prj attrs =
-    List.fold_left (fun total attr ->
-      if Attribute.has_label "recover.cost" attr then
-        let payload = Attribute.payload attr in
-        let cost = if payload =  "inf"
-                   then Cost.infinite
-                   else Cost.of_int (int_of_string payload)
-        in Cost.add total cost
-      else total)
-      Cost.zero (prj attrs)
+  (* Read cost attributes returned by [prj attrs].
+     If there are many attributes with [name] return the sum of them.
+     In opposite case, if there is none of them return [default_cost]. *)
+  let cost_of_attributes
+          ?(attr_name = attr_names#cost)
+          ~default_cost prj attrs =
+    let cost_strs = List.filter (Attribute.has_label attr_name) (prj attrs) in
+    if List.length cost_strs = 0 then
+        default_cost
+    else
+        List.fold_left (fun total attr ->
+                let payload = Attribute.payload attr in
+                let cost = if payload =  "inf"
+                           then Cost.infinite
+                           else Cost.of_int (int_of_string payload)
+                in Cost.add total cost
+            ) Cost.zero cost_strs
+
+  let default_cost_of_symbol =
+    cost_of_attributes
+        ~attr_name:attr_names#default_cost_of_symbol
+        ~default_cost:(Cost.of_int 1)
+        (const Grammar.attributes) ()
+
+  let default_cost_of_prod =
+    cost_of_attributes
+        ~attr_name:attr_names#default_cost_of_prod
+        ~default_cost:(Cost.of_int 1)
+        (const Grammar.attributes) ()
 
   let cost_of_symbol =
     let measure ~has_default prj attrs =
-      if List.exists (Attribute.has_label "recover.expr") (prj attrs) || has_default
-      then cost_of_attributes prj attrs
+      if List.exists (Attribute.has_label attr_names#expr) (prj attrs) || has_default
+      then cost_of_attributes ~default_cost:default_cost_of_symbol prj attrs
       else Cost.infinite
     in
     let ft = Terminal.tabulate
@@ -283,11 +335,11 @@ struct
     | N n -> fn n
 
   let cost_of_prod =
-    Production.tabulate (cost_of_attributes Production.attributes)
+    Production.tabulate (cost_of_attributes ~default_cost:default_cost_of_prod Production.attributes)
 
   let penalty_of_item =
     let f = Production.tabulate @@ fun p ->
-      Array.map (cost_of_attributes (fun (_,_,a) -> a))
+      Array.map (cost_of_attributes ~default_cost:Cost.zero (fun (_,_,a) -> a))
         (Production.rhs p)
     in
     fun (p,i) ->
@@ -296,7 +348,7 @@ struct
 
   let default_prelude ppf =
     List.iter (fun a ->
-        if Attribute.has_label "recover.prelude" a then
+        if Attribute.has_label attr_names#prelude a then
           Format.fprintf ppf "%s\n" (Attribute.payload a)
       ) Grammar.attributes
 
@@ -307,7 +359,7 @@ struct
       let expand = Str.global_replace (Str.regexp "\\$loc") "loc"
       in expand (Attribute.payload attr)
     in
-    match List.find (Attribute.has_label "recover.expr") attrs with
+    match List.find (Attribute.has_label attr_names#expr) attrs with
     | exception Not_found -> fallback
     | attr -> read attr
 
