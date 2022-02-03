@@ -218,7 +218,7 @@ end = struct
   let emit_recoveries ppf =
     let all_cases =
       Lr1.fold (fun st acc ->
-          try let {R. cases; _} = R.recover st in
+          let {R. cases; _} = R.recover st in
             let cases = List.map (fun (st', items) ->
                 (list_last items),
                 (match st' with None -> -1 | Some st' -> Lr1.to_int st')
@@ -230,7 +230,6 @@ end = struct
               | xs -> `Select xs
             in
             (cases, (Lr1.to_int st)) :: acc
-          with _ -> acc
         )
 []
 in

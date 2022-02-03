@@ -7,7 +7,7 @@
  *)
 
 open MenhirSdk
-open Recovery_custom
+open Recovery_new
 
 let name = ref ""
 let external_tokens = ref None
